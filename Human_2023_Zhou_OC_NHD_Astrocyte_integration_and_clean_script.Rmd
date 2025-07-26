@@ -1,0 +1,179 @@
+---
+title: "Human_2023_Zhou_OC_NHD_Colona_Astrocyte_Subset_Analysis"
+author: "Ibrahim Saliu"
+output: html_document
+---
+# set working directory
+setwd("C:/ibrahim/Human_2023_Zhou_OC_NHD_Colona/Human_2023_Zhou_OccipitalCortex_NHD_Astrocyte")
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#library
+library('Seurat')
+library(sctransform)
+library(cowplot)
+library(gplots) # for heatmap
+library(RColorBrewer) # colorRampPalette(), brewer.pal
+library(ggplot2) # qplot(), position_nudge(), geom_text()
+library(dplyr)
+library("limma")
+library(VennDiagram)
+library(reshape)
+library("ggpubr")
+library(UpSetR)
+
+```
+
+#read in the astrocyte data
+Astrocyte_Original_Obj <- readRDS("C:/ibrahim/Human_2023_Zhou_OC_NHD_Colona/Human_2023_Zhou_OccipitalCortex_NHD_FullData_FinalObj_Astrocyte.rds")
+
+# plot the UMAP
+DimPlot(Astrocyte_Original_Obj, reduction = "umap", label = TRUE)
+
+#check the number of cells in each cluster
+table(Astrocyte_Original_Obj@active.ident)
+#Astrocyte 
+#     5807
+
+# split the object cluster and integrate
+DefaultAssay(Astrocyte_Original_Obj) <- "RNA"
+Astrocyte_Original_Obj[["integrated"]] <- NULL
+Astrocyte_Original_Obj[["SCT"]] <- NULL
+
+obj.list <- SplitObject(Astrocyte_Original_Obj, split.by = "orig.ident")
+
+sapply(obj.list, function(x) length(x@meta.data$Genotype) )
+
+#make sample statistics
+nCells <- sapply(obj.list, function(x) table(x@meta.data$orig.ident) )
+medianFeature <- sapply(obj.list, function(x) median(x@meta.data$nFeature_RNA) )
+medianCount <- sapply(obj.list, function(x) median(x@meta.data$nCount_RNA) )
+
+SampleStatistics <- rbind(nCells, medianCount)
+SampleStatistics <- rbind(SampleStatistics, medianFeature)
+
+write.csv(SampleStatistics, file = "SampleStatistics_before_sample_merge.csv")
+
+#normalization using SCTransform approach
+for (i in 1:length(obj.list)) {
+    obj.list[[i]] <- SCTransform(obj.list[[i]],  vars.to.regress = c("nCount_RNA"),verbose = FALSE)
+}
+
+grep(pattern = "^MT-", x= rownames(Astrocyte_Original_Obj@assays$RNA), value = TRUE)
+
+```{r}
+
+# Identification of top consistent highly variable genes across the samples
+alldata.features <- SelectIntegrationFeatures(object.list = obj.list, nfeatures = 3000)
+
+alldata_prepsct <- PrepSCTIntegration(object.list = obj.list, anchor.features = alldata.features, verbose = FALSE)
+
+# determine the inter-sample anchors for integration
+alldata.anchors <- FindIntegrationAnchors(object.list = alldata_prepsct, normalization.method = "SCT", reduction = "cca", dim = 1:30, anchor.features = alldata.features,  verbose = FALSE)
+
+#Integrate the data
+data_integrated <- IntegrateData(anchorset = alldata.anchors, normalization.method = "SCT", verbose = FALSE, dims = 1:30)
+
+# Dimensionality Reduction with PCA & UMAP, then clustering
+data_integrated <- RunPCA(data_integrated,  npcs = 30, verbose = FALSE)
+dims=1:30
+data_integrated <- RunUMAP(data_integrated, reduction = "pca", dims = dims)
+data_integrated <- FindNeighbors(data_integrated, reduction = "pca", dims = dims)
+
+data_integrated <- FindClusters(data_integrated, resolution = 1.2)
+
+# Visualise the UMAP
+p1 <- DimPlot(data_integrated, reduction = "umap", group.by = "orig.ident")
+p2 <- DimPlot(data_integrated, reduction = "umap", label = TRUE)
+png("Zhou_OC_NHD_Astrocyte_integration_dim30_res1.2.png",    
+  width = 10*500,        # 5 x 300 pixels
+  height = 5*400,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  p1 + p2
+dev.off()
+
+# find conserved marker gene for each cluster
+DefaultAssay(data_integrated) <- "SCT"
+
+Conserved_cluster_markers <- list() # list starting subscript is 1, can't use 0
+for (i in 0:(nlevels(data_integrated@active.ident)-1)) {
+  Conserved_cluster_markers[[i+1]] <- FindConservedMarkers(data_integrated, assay = "SCT", slot = "data", test.use = "wilcox", min.pct = 0.2, ident.1 = i, grouping.var = "Genotype", verbose = FALSE, only.pos = TRUE, recorrect_umi = FALSE)
+  
+   # apply cutoff
+    Conserved_cluster_markers[[i+1]] <- Conserved_cluster_markers[[i+1]][ which(Conserved_cluster_markers[[i+1]]$max_pval < 0.05), ]
+}
+
+#output marker genes for each cluster
+for (n in 1:length(Conserved_cluster_markers)) {
+  file_number = n-1
+  outputfile <- paste("Zhou_OC_NHD_Astrocyte_dim30_res1.2_ConservedMarkerGenes_cluster_", file_number,".csv", sep="")
+  write.csv(Conserved_cluster_markers[n], outputfile)
+}
+
+# plot conserved marker genes as feature and violin plot, first normalize the data
+DefaultAssay(data_integrated) <- "RNA"
+data_integrated <- NormalizeData(data_integrated, verbose = FALSE)
+
+# plot conserved marker genes as feature plot
+for (n in 1:length(Conserved_cluster_markers)) {
+  file_number = n-1
+  outputfile <- paste("Zhou_OC_NHD_Astrocyte_dim30_res1.2_ConservedMarkerGenes_cluster_", file_number,"_top20.png", sep="")
+  
+  marker_genes <- row.names(Conserved_cluster_markers[[n]][1:20,])
+  png(outputfile, width = 16*300, height = 13*300, res = 300, pointsize = 5)     
+  print(FeaturePlot(data_integrated, features = marker_genes, min.cutoff = "q9", pt.size = 0.3, max.cutoff = "q90", ncol = 4))
+  dev.off()
+}
+
+# plot conserved marker genes as vln plot
+for (n in 1:length(Conserved_cluster_markers)) {
+  file_number = n-1
+  outputfile <- paste("Zhou_OC_NHD_Astrocyte_dim30_res1.2_ConservedMarkerGenes_vln_cluster_", file_number,"_top20.png", sep="")
+  
+  marker_genes <- row.names(Conserved_cluster_markers[[n]][1:20,])
+  png(outputfile, width = 16*300, height = 13*300, res = 300, pointsize = 5)     
+  print(VlnPlot(data_integrated, assay = "RNA", features = marker_genes) )
+  dev.off()
+}
+
+#do the violin plot to see the quality of all the clusters
+png("Zhou_OC_NHD_Astrocyte_dim30_res1.2_quality.png", width = 16*300, height = 13*300, res = 300, pointsize = 5)
+VlnPlot(data_integrated, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+dev.off()
+
+table(data_integrated@active.ident)
+
+```
+
+# Rename cluster
+new.cluster.ids <- c( "Ast-0", "Ast-1", "Ast-2") 
+names(new.cluster.ids) <- levels(data_integrated)
+data_integrated <- RenameIdents(data_integrated, new.cluster.ids)
+
+# set the order for Genotype 
+data_integrated@meta.data$Genotype <- factor(data_integrated@meta.data$Genotype,levels = c("CTRL", "NHD"))
+
+# set the order for active.ident "Ast-0", "Ast-1",  "Ast-2", "Ast-2.2"
+data_integrated@active.ident <- factor(data_integrated@active.ident,levels = c("Ast-0", "Ast-1", "Ast-2"))
+
+p1 <- DimPlot(data_integrated, reduction = "umap", pt.size = 1.5, cols =c("coral3", "deepskyblue3", "goldenrod2"), label = F) + theme(legend.text = element_text(size = 20))
+png("Zhou_OC_NHD_Astrocyte_dim15_res0.25_RenamedCluster.png",    
+  width = 5*400,        # 5 x 300 pixels
+  height = 4*400,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  p1
+dev.off()
+
+
+saveRDS(data_integrated, file = "Zhou_OC_NHD_Astrocyte_integrated_dim15_res0.25_RenamedCluster.rds")
+save.image("Zhou_OC_NHD_Astrocyte_integrated_dim15_res0.25_RenamedCluster.RData")
+
+
+```{r}
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

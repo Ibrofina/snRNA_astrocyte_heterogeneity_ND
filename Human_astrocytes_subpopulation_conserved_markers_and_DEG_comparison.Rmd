@@ -1,0 +1,500 @@
+---
+title: "Astrocytes subpopulation conserved markers comparison, homologous subpopulation consensus marker and DEG comparison"
+author: "Ibrahim Saliu"
+date: "2025-07-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#create a list of all the markers in all the clusters for each data
+ConservedMarker_List <- list(Xu_puAst0 = ConsMarker_Xu_Pu_ADPD_Ast0$X, Xu_puAst1 = ConsMarker_Xu_Pu_ADPD_Ast1$Gene, Xu_puAst2 = ConsMarker_Xu_Pu_ADPD_Ast2$Gene, Lau_pfcAst0 = ConsMarker_Lau_PFC_AD_Ast0$X, Lau_pfcAst1 = ConsMarker_Lau_PFC_AD_Ast1$X, Lau_pfcAst2 = ConsMarker_Lau_PFC_AD_Ast2$X, Lau_pfcAst3 = ConsMarker_Lau_PFC_AD_Ast3$X, Grubman_ecAst0 = ConsMarker_Grubman_EC_AD_Ast0$X, Grubman_ecAst1 = ConsMarker_Grubman_EC_AD_Ast1$X, Grubman_ecAst2 = ConsMarker_Grubman_EC_AD_Ast2$X, Feleke_accAst0 = ConsMarker_Feleke_ACC_LBD_Ast0$X, Feleke_accAst1 = ConsMarker_Feleke_ACC_LBD_Ast1$X, Feleke_accAst2 = ConsMarker_Feleke_ACC_LBD_Ast2$X, Lee_puAst0 = ConsMarker_Lee_Pu_HD_Ast0$X, Lee_puAst2 = ConsMarker_Lee_Pu_HD_Ast2$X, Lee_puAst4 = ConsMarker_Lee_Pu_HD_Ast4$X,  Lee_cdAst0 = ConsMarker_Lee_Cd_HD_Ast0$X, Lee_cdAst2 = ConsMarker_Lee_Cd_HD_Ast2$X, Lee_cdAst5 = ConsMarker_Lee_Cd_HD_Ast5$X, Zhou_ocAst0 = ConsMarker_Zhou_oc_NHD_Ast0$X, Zhou_ocAst1 = ConsMarker_Zhou_oc_NHD_Ast1$X, Zhou_ocAst2 = ConsMarker_Zhou_oc_NHD_Ast2$X, Gabitto_SEA_mtgAst0 = ConsMarker_Gabitto_mtg_AD_Ast0$X, Gabitto_SEA_mtgAst1 = ConsMarker_Gabitto_mtg_AD_Ast1$X, Gabitto_SEA_mtgAstInt = ConsMarker_Gabitto_mtg_AD_AstInt$X, Gabitto_SEA_mtgAst2 = ConsMarker_Gabitto_mtg_AD_Ast2$X, Gabitto_SEA_mtgAst6 = ConsMarker_Gabitto_mtg_AD_Ast6$X, Gabitto_SEA_mtgAst7 = ConsMarker_Gabitto_mtg_AD_Ast7$X)
+
+# make a list of all the average expression of conserved markers of astrocyte subpopulation for all data
+Ast_AvgExp_ConservedMarker_List <- list(Xu_Ast0_AvgExp, Xu_Ast1_AvgExp, Xu_Ast2_AvgExp, Lau_Ast0_AvgExp, Lau_Ast1_AvgExp, Lau_Ast2_AvgExp, Grubman_Ast0_AvgExp, Grubman_Ast1_AvgExp, Grubman_Ast2_AvgExp, Feleke_Ast0_AvgExp, Feleke_Ast1_AvgExp, Feleke_Ast2_AvgExp, Lee_Ast0_AvgExp, Lee_Ast2_AvgExp, Zhou_Ast0_AvgExp, Zhou_Ast1_AvgExp, Zhou_Ast2_AvgExp, Lee_cdAst0_AvgExp, Lee_cdAst2_AvgExp, Gabitto_SEA_mtgAst0_AvgExp, Gabitto_SEA_mtgAst1_AvgExp, Gabitto_SEA_mtgAstInt_AvgExp, Gabitto_SEA_mtgAst2_AvgExp)
+
+# merge all the average expression dataframe in the list
+All_Ast_ConservedMarker <- Reduce(function(x, y) merge(x, y, all=TRUE), Ast_AvgExp_ConservedMarker_List)
+rownames(All_Ast_ConservedMarker) <- All_Ast_ConservedMarker$Gene
+All_Ast_ConservedMarker$Gene <- NULL
+# 1331 X 23
+
+#remove genes that do are not expressed in atleast 3 dataset
+DataToPlot_Ast <- All_Ast_ConservedMarker[rowSums(!is.na(All_Ast_ConservedMarker)) >= 3, ]
+DataToPlot_Ast[is.na(DataToPlot_Ast)] <- 0
+# convert all element greater than zero to 1
+DataToPlot_Ast <- DataToPlot_Ast %>% mutate_if(is.numeric, ~1 * (. > 0))
+
+range(DataToPlot_Ast)
+# 0.00000 89.11574
+
+library(circlize)
+col_fun = colorRamp2(c(0, 1), c("white", "mediumblue"))
+#col_fun(seq(0, 63))
+
+#define genes to be labelled
+genes.to.label <- c("GPC5", "NRXN1", "APOE", "CST3", "CLU", "VIM", "SERPINA3", "S100B", "HSPB8", "GJA1", "DPP10", "GFAP", "VCAN", "CD44", "GAPDH", "MT3", "TNC", "VIM", "SLC38A1")
+
+position.to.lable <- which(rownames(DataToPlot_Ast) %in% genes.to.label)
+genes.to.label <- rownames(DataToPlot_Ast)[c(which(rownames(DataToPlot_Ast) %in% genes.to.label))]
+
+# define color annotation 
+ColumnAnnotation <- HeatmapAnnotation(Region = str_sub(sapply(strsplit(colnames(DataToPlot_Ast), "_"), function(x){x[2]})), 
+                                      Subpopulation = str_sub(sapply(strsplit(colnames(DataToPlot_Ast), "_"), function(x) {x[3]})),
+                              col = list(Region = c(pu = "lightslateblue", "acc" = "antiquewhite2", "ec" = "blue4", "pfc" ="blueviolet", "oc" =  "yellow", "cd" = "cadetblue", "mtg" = "red4"), 
+                              Subpopulation = c("Ast0" = "coral3", "Ast1" = "deepskyblue3", "Ast2" = "goldenrod2", "AstInt" = "dodgerblue4")), annotation_legend_param = list(grid_height = unit(0.7, "cm"), grid_width = unit(5, "mm"), labels_gp = gpar(fontsize = 14, face = "bold"), title_gp = gpar(fontsize = 14, fontface = "bold")))
+
+RowAnnotation = rowAnnotation(genes = anno_mark(at = position.to.lable, labels = genes.to.label ,  labels_gp = gpar(fontsize = 17)))
+
+png("Astrocytes_ConservedMarker_shared_heatmap_ExpressedAtLeast3.png", width = 10*500, height = 8*500, res = 300, pointsize = 8)
+Heatmap(as.matrix(DataToPlot_Ast), name = "Trend", column_title = "Shared Conserved Markers in subpopulation and regions", cluster_columns  = TRUE, column_names_rot = 70, column_names_gp = gpar(fontsize = 17), col = col_fun, show_row_names = FALSE, column_km_repeats = 100, column_km = 3, row_km =3, right_annotation = RowAnnotation, top_annotation = ColumnAnnotation, rect_gp = gpar(col = "white", lwd = 0), heatmap_legend_param = list(labels_gp = gpar(fontsize = 12), legend_height = unit(5, "cm"), height = unit(2, "cm"), title_gp = gpar(fontsize = 14)))
+dev.off()
+
+
+```{r}
+
+# Conserved Marker Gene Ontology (GO) and KEGG Analysis
+
+```
+
+# Molecular function (MF), Cellular Component (CC), Biological Process (BP)
+Ast_compGO_MF <- compareCluster(
+  geneCluster   = ConservedMarker_List_ENTREZID,
+  fun           = "enrichGO",
+  ont = "MF", #CC, BP
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+Ast_ConsMarker_GO_MF <- gsfilter(Ast_compGO_MF, by = 'Count', min = 5)
+
+write.csv( as.data.frame(Ast_ConsMarker_GO_MF), "All_ConservedMarkerGene_compGO_MF.csv")
+
+Ast_ConsMarker_GO_MF@compareClusterResult[["Gene_Ratio"]] <- sapply(strsplit(as.character(Ast_ConsMarker_GO_MF@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+png("ConsMarker_GO_MF.png", width = 10*600, height = 8*400, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(Ast_ConsMarker_GO_MF, showCategory = 2, title = "Top 2 Molecular function", label_format = 80, font.size = 24, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(angle = 45,vjust=1, hjust=1, size = 16), axis.text.y = element_text(size = 20), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+#KEGG
+Ast_compKEGG <- compareCluster(geneCluster= ConservedMarker_List_ENTREZID,
+                            fun           = "enrichKEGG",
+                            organism = 'hsa', # mmu for mouse, hsa for human
+                            universe = All_Universe_Genes_ENTREZID,
+                            pvalueCutoff  = 0.05,
+                            use_internal_data=T,
+                            pAdjustMethod = "BH",
+                            qvalueCutoff = 0.05)
+
+Ast_ConsMarker_KEGG <- gsfilter(Ast_compKEGG, by = 'Count', min = 5)
+
+Ast_ConsMarker_KEGG@compareClusterResult[["Gene_Ratio"]] <- sapply(strsplit(as.character(Ast_ConsMarker_KEGG@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+png("Ast_ConservedMarker_KEGG5.png", width = 12*500, height = 12*300, res = 300, pointsize = 4) 
+plot <- clusterProfiler::dotplot(Ast_ConsMarker_KEGG, showCategory = 3, title = "Top 3 KEGG pathway", label_format = 80, font.size = 24, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(angle = 45,vjust=1, hjust=1, size = 16), axis.text.y = element_text(size = 20), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+
+```{r}
+
+# ################ Define common gene set ######################################
+#### For Ast-0 ####
+# List of marker sets
+marker_sets <- c("Grubman_ecAst0", "Feleke_accAst0", "Lau_pfcAst0", "Xu_puAst0", "Zhou_ocAst0", "Lee_puAst0", "Lee_cdAst0", "Gabitto_SEA_mtgAst0")
+
+# Create an empty list to store the data frames
+result_list <- list()
+
+# Loop over marker sets
+for (marker_set in marker_sets) {
+  # Create data frame
+  current_df <- data.frame(Name = ConservedMarker_List[[marker_set]], Trend = 1)
+  rownames(current_df) <- ConservedMarker_List[[marker_set]]
+ 
+  # Append to the result list
+  result_list[[marker_set]] <- current_df
+}
+
+colnames(result_list[["Grubman_ecAst0"]])[colnames(result_list[["Grubman_ecAst0"]]) == "Trend"] <- "GA_ec"
+colnames(result_list[["Feleke_accAst0"]])[colnames(result_list[["Feleke_accAst0"]]) == "Trend"] <- "FR_acc"
+colnames(result_list[["Lau_pfcAst0"]])[colnames(result_list[["Lau_pfcAst0"]]) == "Trend"] <- "LS_pfc"
+colnames(result_list[["Xu_puAst0"]])[colnames(result_list[["Xu_puAst0"]]) == "Trend"] <- "XJ_pu"
+colnames(result_list[["Zhou_ocAst0"]])[colnames(result_list[["Zhou_ocAst0"]]) == "Trend"] <- "ZY_oc"
+colnames(result_list[["Lee_puAst0"]])[colnames(result_list[["Lee_puAst0"]]) == "Trend"] <- "LH_pu"
+colnames(result_list[["Lee_cdAst0"]])[colnames(result_list[["Lee_cdAst0"]]) == "Trend"] <- "LH_cd"
+colnames(result_list[["Gabitto_SEA_mtgAst0"]])[colnames(result_list[["Gabitto_SEA_mtgAst0"]]) == "Trend"] <- "GM_mtg"
+
+# merge all the average expression dataframe in the list
+df_ConservedMarker <- Reduce(function(x, y) merge(x, y, all=TRUE), result_list)
+rownames(df_ConservedMarker) <- df_ConservedMarker$Name
+df_ConservedMarker$Name <- NULL
+
+# ###################### filter out all genes not expressed in 5 or more dataset
+df_ConservedMarker <- df_ConservedMarker[rowSums(!is.na(df_ConservedMarker)) >= 5, ]
+df_ConservedMarker[is.na(df_ConservedMarker)] <- "NotPresent"
+df_ConservedMarker <- df_ConservedMarker %>% mutate_all(~ifelse(. == 1, "Present", .))
+write.csv(df_ConservedMarker, file = "Astrocytes_subpopulation_genes_common_in_5_or_more_dataset_common_gene_set_Ast0.csv")
+
+Ast0_common_genes <- rownames(df_ConservedMarker)
+
+#### For Ast-1 ####
+# List of marker sets
+marker_sets <- c("Grubman_ecAst1", "Feleke_accAst1", "Lau_pfcAst1", "Xu_puAst1", "Zhou_ocAst1", "Gabitto_SEA_mtgAst1")
+
+# Create an empty list to store the data frames
+result_list <- list()
+
+# Loop over marker sets
+for (marker_set in marker_sets) {
+  # Create data frame
+  current_df <- data.frame(Name = ConservedMarker_List[[marker_set]], Trend = 1)
+  rownames(current_df) <- ConservedMarker_List[[marker_set]]
+ 
+  # Append to the result list
+  result_list[[marker_set]] <- current_df
+}
+
+colnames(result_list[["Grubman_ecAst1"]])[colnames(result_list[["Grubman_ecAst1"]]) == "Trend"] <- "GA_ec"
+colnames(result_list[["Feleke_accAst1"]])[colnames(result_list[["Feleke_accAst1"]]) == "Trend"] <- "FR_acc"
+colnames(result_list[["Lau_pfcAst1"]])[colnames(result_list[["Lau_pfcAst1"]]) == "Trend"] <- "LS_pfc"
+colnames(result_list[["Xu_puAst1"]])[colnames(result_list[["Xu_puAst1"]]) == "Trend"] <- "XJ_pu"
+colnames(result_list[["Zhou_ocAst1"]])[colnames(result_list[["Zhou_ocAst1"]]) == "Trend"] <- "ZY_oc"
+colnames(result_list[["Gabitto_SEA_mtgAst1"]])[colnames(result_list[["Gabitto_SEA_mtgAst1"]]) == "Trend"] <- "GM_mtg"
+
+# merge all the average expression dataframe in the list
+df_ConservedMarker <- Reduce(function(x, y) merge(x, y, all=TRUE), result_list)
+rownames(df_ConservedMarker) <- df_ConservedMarker$Name
+df_ConservedMarker$Name <- NULL
+
+# ###################### filter out all genes not expressed in 5 or more dataset
+df_ConservedMarker <- df_ConservedMarker[rowSums(!is.na(df_ConservedMarker)) >= 5, ]
+df_ConservedMarker[is.na(df_ConservedMarker)] <- "NotPresent"
+df_ConservedMarker <- df_ConservedMarker %>% mutate_all(~ifelse(. == 1, "Present", .))
+
+write.csv(df_ConservedMarker, file = "Astrocytes_subpopulation_genes_common_in_5_or_more_dataset_common_gene_set_Ast1.csv")
+Ast1_common_genes <- rownames(df_ConservedMarker)
+
+#### For Ast-2 ####
+# List of marker sets
+marker_sets <- c("Grubman_ecAst2", "Feleke_accAst2", "Lau_pfcAst2", "Xu_puAst2", "Zhou_ocAst2", "Lee_puAst2", "Lee_cdAst2", "Gabitto_SEA_mtgAst2")
+
+# Create an empty list to store the data frames
+result_list <- list()
+
+# Loop over marker sets
+for (marker_set in marker_sets) {
+  # Create data frame
+  current_df <- data.frame(Name = ConservedMarker_List[[marker_set]], Trend = 1)
+  rownames(current_df) <- ConservedMarker_List[[marker_set]]
+ 
+  # Append to the result list
+  result_list[[marker_set]] <- current_df
+}
+
+colnames(result_list[["Grubman_ecAst2"]])[colnames(result_list[["Grubman_ecAst2"]]) == "Trend"] <- "GA_ec"
+colnames(result_list[["Feleke_accAst2"]])[colnames(result_list[["Feleke_accAst2"]]) == "Trend"] <- "FR_acc"
+colnames(result_list[["Lau_pfcAst2"]])[colnames(result_list[["Lau_pfcAst2"]]) == "Trend"] <- "LS_pfc"
+colnames(result_list[["Xu_puAst2"]])[colnames(result_list[["Xu_puAst2"]]) == "Trend"] <- "XJ_pu"
+colnames(result_list[["Zhou_ocAst2"]])[colnames(result_list[["Zhou_ocAst2"]]) == "Trend"] <- "ZY_oc"
+colnames(result_list[["Lee_puAst2"]])[colnames(result_list[["Lee_puAst2"]]) == "Trend"] <- "LH_pu"
+colnames(result_list[["Lee_cdAst2"]])[colnames(result_list[["Lee_cdAst2"]]) == "Trend"] <- "LH_cd"
+colnames(result_list[["Gabitto_SEA_mtgAst2"]])[colnames(result_list[["Gabitto_SEA_mtgAst2"]]) == "Trend"] <- "GM_mtg"
+
+# merge all the average expression dataframe in the list
+df_ConservedMarker <- Reduce(function(x, y) merge(x, y, all=TRUE), result_list)
+rownames(df_ConservedMarker) <- df_ConservedMarker$Name
+df_ConservedMarker$Name <- NULL
+
+# ###################### filter out all genes not expressed in 5 or more dataset
+df_ConservedMarker <- df_ConservedMarker[rowSums(!is.na(df_ConservedMarker)) >= 5, ]
+df_ConservedMarker[is.na(df_ConservedMarker)] <- "NotPresent"
+df_ConservedMarker <- df_ConservedMarker %>% mutate_all(~ifelse(. == 1, "Present", .))
+
+write.csv(df_ConservedMarker, file = "Astrocytes_subpopulation_genes_common_in_5_or_more_dataset_common_gene_set_Ast2.csv")
+Ast2_common_genes <- rownames(df_ConservedMarker)
+
+# ########################## Matrix plot for common gene set ##################################
+
+Ast_sub_AvgExp <- list(Xu_Ast0_AvgExp, Xu_Ast1_AvgExp, Xu_Ast2_AvgExp, Lau_Ast0_AvgExp, Lau_Ast1_AvgExp, Lau_Ast2_AvgExp, Grubman_Ast0_AvgExp, Grubman_Ast1_AvgExp, Grubman_Ast2_AvgExp, Feleke_Ast0_AvgExp, Feleke_Ast1_AvgExp, Feleke_Ast2_AvgExp, Lee_Ast0_AvgExp, Lee_Ast2_AvgExp, Zhou_Ast0_AvgExp, Zhou_Ast1_AvgExp, Zhou_Ast2_AvgExp, Lee_cdAst0_AvgExp, Lee_cdAst2_AvgExp, Gabitto_SEA_mtgAst0_AvgExp, Gabitto_SEA_mtgAst1_AvgExp, Gabitto_SEA_mtgAst2_AvgExp)
+
+
+Ast_sub_AvgExp <- Reduce(function(x, y) merge(x, y, all=TRUE), Ast_sub_AvgExp)
+rownames(Ast_sub_AvgExp) <- Ast_sub_AvgExp$Gene
+Ast_sub_AvgExp$Gene <- NULL
+
+All_common_genes <- c(Ast0_common_genes, Ast1_common_genes, Ast2_common_genes)
+
+# Subset df to keep only the rows with common elements
+Ast_sub_AvgExp <- Ast_sub_AvgExp[All_common_genes, , drop = FALSE]
+Ast_sub_AvgExp[is.na(Ast_sub_AvgExp)] <- 0
+
+reorder_column <- c("GA_ec_Ast0", "FR_acc_Ast0", "LS_pfc_Ast0", "XJ_pu_Ast0", "ZY_oc_Ast0", "LH_pu_Ast0", "LH_cd_Ast0", "GM_mtg_Ast0", "GA_ec_Ast1", "FR_acc_Ast1", "LS_pfc_Ast1", "XJ_pu_Ast1", "ZY_oc_Ast1", "GM_mtg_Ast1", "GA_ec_Ast2", "FR_acc_Ast2", "LS_pfc_Ast2", "XJ_pu_Ast2", "ZY_oc_Ast2", "LH_pu_Ast2", "LH_cd_Ast2", "GM_mtg_Ast2")
+
+Ast_sub_AvgExp <- Ast_sub_AvgExp[,reorder_column]
+
+range(Ast_sub_AvgExp)
+# 0.00000 142.5759
+
+write.csv(Ast_sub_AvgExp, file = "Astrocytes_subpopulation_consensus_geneset_in_5_or_more_dataset_AvgExp.csv")
+
+library(circlize)
+col_fun = colorRamp2(c(0, 5), c("white", "mediumblue"))
+#col_fun(seq(0, 63))
+
+#define genes to be labelled
+genes.to.label <- All_common_genes
+
+position.to.lable <- which(rownames(Ast_sub_AvgExp) %in% genes.to.label)
+genes.to.label <- rownames(Ast_sub_AvgExp)[c(which(rownames(Ast_sub_AvgExp) %in% genes.to.label))]
+
+# define color annotation 
+ColumnAnnotation <- HeatmapAnnotation(region = str_sub(sapply(strsplit(colnames(Ast_sub_AvgExp), "_"), function(x){x[2]})), 
+                                      subpopulation = str_sub(sapply(strsplit(colnames(Ast_sub_AvgExp), "_"), function(x) {x[3]})),
+                      col = list(region = c(pu = "lightslateblue", "acc" = "antiquewhite2", "ec" = "blue4", "pfc" ="blueviolet", "oc" =  "yellow", "cd" = "cadetblue", "mtg" = "red4"),
+                                subpopulation = c("Ast0" = "coral3", "Ast1" = "deepskyblue3", "Ast2" = "goldenrod2")), annotation_legend_param = list(grid_height = unit(0.7, "cm"), grid_width = unit(6, "mm"), labels_gp = gpar(fontsize = 12), title_gp = gpar(fontsize = 11, fontface = "bold")))
+
+RowAnnotation = rowAnnotation(genes = anno_mark(at = position.to.lable, labels = genes.to.label, labels_gp = gpar(fontsize = 10)))
+
+png("Common_signature_gene_matrix.png", width = 8*500, height = 9*700, res = 300, pointsize = 8)  
+Heatmap(as.matrix(Ast_sub_AvgExp), name = "Avg expression", cluster_rows = FALSE, cluster_columns = FALSE, column_names_rot = 84, column_names_gp = gpar(fontsize = 23), col = col_fun, show_row_names = FALSE, top_annotation = ColumnAnnotation, right_annotation = RowAnnotation, rect_gp = gpar(col = "white", lwd = 0), heatmap_legend_param = list(labels_gp = gpar(fontsize = 14), legend_height = unit(5, "cm"), legend_width = unit(7, "cm"), height = unit(5, "cm"), title_gp = gpar(fontsize = 15, fontface = "bold")))
+dev.off()
+
+svg("Common_signature_gene_matrix.svg", width = 11,  height =17,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+Heatmap(as.matrix(Ast_sub_AvgExp), name = "Avg expression", cluster_rows = FALSE, cluster_columns = FALSE, column_names_rot = 90, column_names_gp = gpar(fontsize = 19), col = col_fun, show_row_names = FALSE, top_annotation = ColumnAnnotation, right_annotation = RowAnnotation, rect_gp = gpar(col = "white", lwd = 0), heatmap_legend_param = list(labels_gp = gpar(fontsize = 14), legend_height = unit(5, "cm"), legend_width = unit(7, "cm"), height = unit(5, "cm"), title_gp = gpar(fontsize = 15, fontface = "bold")))
+dev.off()
+
+
+```
+
+# ######################## violin plot to show that putamen from Xu data and Lee data are different ########################
+
+marker_genes <- c("PRDX1", "APOC1", "TNR", "SCN1A")
+
+png("Lee_pu_HD_Ast_dim15_res0.25_putamen_markers_Vln.png", width = 6*900, height = 4*400, res = 300, pointsize = 5)
+VlnPlot(Lee_Pu_HD_Ast_FinalObj, assay = "RNA", features = marker_genes, pt.size = 0, ncol =4, cols = c("coral3", "goldenrod2", "mediumturquoise"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=22), axis.text.x=element_text(angle=45, hjust=1, size=29), axis.text.y=element_text( size=25)) 
+dev.off()
+
+png("Xu_pu_Ast_dim15_res0.25_putamen_markers_Vln.png", width = 6*900, height = 4*400, res = 300, pointsize = 5)
+VlnPlot(Xu_Ast_FinalObj, assay = "RNA", features = marker_genes, pt.size = 0, ncol =4, cols = c("coral3", "deepskyblue3", "goldenrod2"))&   theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=22), axis.text.x=element_text(angle=45, hjust=1, size=29), axis.text.y=element_text( size=25)) 
+dev.off()
+
+
+# ######################## violin plot of unique genes in cluster 3, 4, 5, 6, 7 ##########################
+marker_genes_Lau <- c("ARHGEF3", "OSMR-AS1")
+
+png("Lau_pfc_AD_Ast_dim15_res0.25_unique_marker_Ast3_Vln.png", width = 4*700, height = 4*400, res = 300, pointsize = 5)
+VlnPlot(Lau_Ast_FinalObj, assay = "RNA", features = marker_genes_Lau, pt.size = 0, ncol =2, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47"))& 
+theme(plot.title = element_text(size = rel(1.9)), axis.title.x=element_blank(), axis.title.y=element_text(size=20), axis.text.x=element_text(angle=45, hjust=1, size=27), axis.text.y=element_text( size=25)) 
+dev.off()
+
+marker_genes_LH_cd <- c("GALNT16", "SOCS3")
+png("Lee_cd_HD_Ast_dim15_res0.20_unique_marker_Ast5_Vln.png", width = 4*700, height = 4*400, res = 300, pointsize = 5)
+VlnPlot(Lee_Cd_HD_Ast_FinalObj, assay = "RNA", features = marker_genes_LH_cd, pt.size = 0, ncol =2, cols = c("coral3", "goldenrod2", "mediumorchid3"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=21), axis.text.x=element_text(angle=45, hjust=1, size=27), axis.text.y=element_text( size=25)) 
+dev.off()
+
+marker_genes_LH_pu <- c("SPARC", "SCN1A")
+png("Lee_pu_HD_Ast_dim15_res0.25_unique_marker_Ast5_Vln.png", width = 4*700, height = 4*400, res = 300, pointsize = 5)
+VlnPlot(Lee_Pu_HD_Ast_FinalObj, assay = "RNA", features = marker_genes_LH_pu, pt.size = 0, ncol =2, cols = c("coral3", "goldenrod2", "mediumturquoise"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=21), axis.text.x=element_text(angle=45, hjust=1, size=27), axis.text.y=element_text( size=25)) 
+dev.off()
+
+marker_genes_Gabitto <- c("SEMA5A", "ARMC3", "IRAK2", "ITGA3")
+png("Gabitto_SEA_AD_Ast_dim15_res0.25_unique_marker_Ast6n7_Vln.png", width = 8*900, height = 4*400, res = 300, pointsize = 5)
+VlnPlot(Gabitto_MTG_Ast_FinalObj, assay = "RNA", features = marker_genes_Gabitto, pt.size = 0, ncol =4, cols = c("coral3", "deepskyblue3", "dodgerblue4", "goldenrod2", "gold4", "forestgreen"))& 
+  theme(plot.title = element_text(size = rel(1.7)), axis.title.x=element_blank(), axis.title.y=element_text(size=18), axis.text.x=element_text(angle=45, hjust=1, size=22), axis.text.y=element_text( size=21)) 
+dev.off()
+
+
+```{r}
+
+# Disease DEG comparison across all dataset
+
+```
+
+#create a list for all the DEG for all the dataset
+List_of_DEGs <- list(Lau_pfcAD_Ast0, Lau_pfcAD_Ast1, Lau_pfcAD_Ast2, Lau_pfcAD_Ast3, Grubman_ecAD_Ast0, Grubman_ecAD_Ast1, Grubman_ecAD_Ast2, Xu_puAD_Ast0, Xu_puAD_Ast1, Xu_puAD_Ast2, Xu_puPD_Ast0, Xu_puPD_Ast1, Xu_puPD_Ast2, Feleke_accDLBD_Ast0, Feleke_accDLBD_Ast1, Feleke_accDLBD_Ast2, Feleke_accPD_Ast0, Feleke_accPD_Ast1, Feleke_accPD_Ast2, Feleke_accPDD_Ast0, Feleke_accPDD_Ast1, Feleke_accPDD_Ast2, Lee_puHD_Ast0, Lee_puHD_Ast2, Lee_puHD_Ast4, Lee_cdHD_Ast0, Lee_cdHD_Ast2, Lee_cdHD_Ast5, Zhou_ocNHD_Ast0, Zhou_ocNHD_Ast1, Zhou_ocNHD_Ast2, Gabitto_SEA_mtgAD_Ast0, Gabitto_SEA_mtgAD_Ast1, Gabitto_SEA_mtgAD_AstInt, Gabitto_SEA_mtgAD_Ast2, Gabitto_SEA_mtgAD_Ast6, Gabitto_SEA_mtgAD_Ast7)
+
+List_of_Ast_DEGs <- Reduce(function(x, y) merge(x, y, all=TRUE), List_of_DEGs)
+
+rownames(List_of_Ast_DEGs) <- List_of_Ast_DEGs$GeneName
+
+List_of_Ast_DEGs$GeneName <- NULL
+dim(List_of_Ast_DEGs)
+
+#remove genes that do are not expressed in atleast 3 dataset
+List_of_Ast_DEGs <- List_of_Ast_DEGs[rowSums(!is.na(List_of_Ast_DEGs)) >= 4, ]
+
+range(List_of_Ast_DEGs) 
+#-2.316451  2.771361
+
+library(circlize)
+col_fun = colorRamp2(c(-0.7, 0, 0.7), c("blue", "gray98", "orangered2"))
+
+genes.to.label <- c("APOE", "CD44", "CLU", "DBI", "FTH1", "CRYAB" , "GFAP", "GJA1", "HSPA1B", "MT2A", "S100B", "SPARC", "TNC", "VCAN", "VIM", "BAG3", "MT2A", "MT3", "NFE2L2", "SOX9", "SOX2", "NFIA", "NR1D1", "NR1D2", "F3", "C3", "AKT3", "JUNB", "APOC1", "JAK1", "MAOB", "SOD2")
+
+position.to.lable <- which(rownames(List_of_Ast_DEGs) %in% genes.to.label)
+genes.to.label <- rownames(List_of_Ast_DEGs)[c(which(rownames(List_of_Ast_DEGs) %in% genes.to.label))]
+
+# define color annotation 
+ColumnAnnotation <- HeatmapAnnotation(region = str_sub(sapply(strsplit(colnames(List_of_Ast_DEGs), "_"), function(x){x[2]})), 
+                                      subpopulation = str_sub(sapply(strsplit(colnames(List_of_Ast_DEGs), "_"), function(x) {x[4]})),
+                                      condition = str_sub(sapply(strsplit(colnames(List_of_Ast_DEGs), "_"), function(x) {x[3]})),
+                      col = list(region = c("pu" = "antiquewhite2", "acc" = "cadetblue2", "ec" = "chartreuse1", "pfc" = "chartreuse4", "oc" = "plum", "cd" = "blue4", "mtg" = "red4"),
+                                subpopulation = c("Ast0" = "coral3", "Ast1" = "deepskyblue3", "AstInt" = "dodgerblue4", "Ast2" = "goldenrod2", "Ast3" = "gray47", "Ast4" = "mediumturquoise", "Ast5" = "mediumorchid3", "Ast6" = "gold4", "Ast7" = "forestgreen"),
+                                condition = c("CTRL" = "green", "AD" = "red", "DLBD" = "orange1", "PD" = "blue", "PDD" = "purple2", "NHD" = "sienna4", "HD" = "midnightblue")), annotation_legend_param = list(grid_height = unit(0.9, "cm"), grid_width = unit(7, "mm"), labels_gp = gpar(fontsize = 16), title_gp = gpar(fontsize = 16, fontface = "bold")))
+
+
+RowAnnotation = rowAnnotation(genes = anno_mark(at = position.to.lable, labels = genes.to.label ,  labels_gp = gpar(fontsize = 26)))
+
+#.png format
+png("DEG_comparison_heatmap_sig.png", width = 10*500, height = 8*500, res = 300, pointsize = 8)  
+Heatmap(as.matrix(List_of_Ast_DEGs), name = "avg_log2FC", column_title = "DEGs shared by all scRNA-seq studies", cluster_rows = TRUE, cluster_columns  = TRUE, column_names_rot = 70, column_names_gp = gpar(fontsize = 20), col = col_fun, show_row_names = FALSE, column_km_repeats = 100, column_km = 5, row_km_repeats = 100, row_km = 3, right_annotation = RowAnnotation, top_annotation = ColumnAnnotation, rect_gp = gpar(col = "white", lwd = 0), heatmap_legend_param = list(legend_height = unit(5, "cm"), legend_width = unit(7, "cm"), grid_width = unit(5, "mm")))
+dev.off()
+
+
+#MirrorPlot
+#create a list for upregulated and downregulated DEG across brain regions for all the conditions
+Upregulated_DEGs <- list(GA_ec_AD_Ast0 = Grubman_ecAD_Ast0_up, GA_ec_AD_Ast1 = Grubman_ecAD_Ast1_up, GA_ec_AD_Ast2 = Grubman_ecAD_Ast2_up, FR_acc_DLBD_Ast0 = Feleke_accDLBD_Ast0_up, FR_acc_DLBD_Ast1 = Feleke_accDLBD_Ast1_up, FR_acc_DLBD_Ast2 = Feleke_accDLBD_Ast2_up, FR_acc_PD_Ast0 = Feleke_accPD_Ast0_up, FR_acc_PD_Ast1 = Feleke_accPD_Ast1_up, FR_acc_PD_Ast2 = Feleke_accPD_Ast2_up, FR_acc_PDD_Ast0 = Feleke_accPDD_Ast0_up, FR_acc_PDD_Ast1 = Feleke_accPDD_Ast1_up, FR_acc_PDD_Ast2 = Feleke_accPDD_Ast2_up, LS_pfc_AD_Ast0 = Lau_pfcAD_Ast0_up, LS_pfc_AD_Ast1 = Lau_pfcAD_Ast1_up, LS_pfc_AD_Ast2 = Lau_pfcAD_Ast2_up, LS_pfc_AD_Ast3 = Lau_pfcAD_Ast3_up, XJ_pu_AD_Ast0 = Xu_puAD_Ast0_up, XJ_pu_AD_Ast1 = Xu_puAD_Ast1_up, XJ_pu_AD_Ast2 = Xu_puAD_Ast2_up, XJ_pu_PD_Ast0 = Xu_puPD_Ast0_up, XJ_pu_PD_Ast1 = Xu_puPD_Ast1_up, XJ_pu_PD_Ast2 = Xu_puPD_Ast2_up, ZY_oc_NHD_Ast0 = Zhou_ocNHD_Ast0_up, ZY_oc_NHD_Ast1 = Zhou_ocNHD_Ast1_up, ZY_oc_NHD_Ast2 = Zhou_ocNHD_Ast2_up, LH_pu_HD_Ast0 = Lee_puHD_Ast0_up, LH_pu_HD_Ast2 = Lee_puHD_Ast2_up, LH_pu_HD_Ast4 =  Lee_puHD_Ast4_up, LH_cd_HD_Ast0 = Lee_cdHD_Ast0_up, LH_cd_HD_Ast2 = Lee_cdHD_Ast2_up, LH_cd_HD_Ast5 = Lee_cdHD_Ast5_up, GM_mtg_AD_Ast0 = Gabitto_SEA_mtgAD_Ast0_up, GM_mtg_AD_Ast1 = Gabitto_SEA_mtgAD_Ast1_up, GM_mtg_AD_AstInt = Gabitto_SEA_mtgAD_AstInt_up, GM_mtg_AD_Ast2 = Gabitto_SEA_mtgAD_Ast2_up, GM_mtg_AD_Ast6 =  Gabitto_SEA_mtgAD_Ast6_up, GM_mtg_AD_Ast7 = Gabitto_SEA_mtgAD_Ast7_up)
+
+Downregulated_DEGs <- list(GA_ec_AD_Ast0 = Grubman_ecAD_Ast0_down, GA_ec_AD_Ast1 = Grubman_ecAD_Ast1_down, GA_ec_AD_Ast2 = Grubman_ecAD_Ast2_down, FR_acc_DLBD_Ast0 = Feleke_accDLBD_Ast0_down, FR_acc_DLBD_Ast1 = Feleke_accDLBD_Ast1_down, FR_acc_DLBD_Ast2 = Feleke_accDLBD_Ast2_down, FR_acc_PD_Ast0 = Feleke_accPD_Ast0_down, FR_acc_PD_Ast1 = Feleke_accPD_Ast1_down, FR_acc_PD_Ast2 = Feleke_accPD_Ast2_down, FR_acc_PDD_Ast0 = Feleke_accPDD_Ast0_down, FR_acc_PDD_Ast1 = Feleke_accPDD_Ast1_down, FR_acc_PDD_Ast2 = Feleke_accPDD_Ast2_down, LS_pfc_AD_Ast0 = Lau_pfcAD_Ast0_down, LS_pfc_AD_Ast1 = Lau_pfcAD_Ast1_down, LS_pfc_AD_Ast2 = Lau_pfcAD_Ast2_down, LS_pfc_AD_Ast3 = Lau_pfcAD_Ast3_down,  XJ_pu_AD_Ast0 = Xu_puAD_Ast0_down, XJ_pu_AD_Ast1 = Xu_puAD_Ast1_down, XJ_pu_AD_Ast2 = Xu_puAD_Ast2_down, XJ_pu_PD_Ast0 = Xu_puPD_Ast0_down, XJ_pu_PD_Ast1 = Xu_puPD_Ast1_down, XJ_pu_PD_Ast2 = Xu_puPD_Ast2_down, ZY_oc_NHD_Ast0 = Zhou_ocNHD_Ast0_down, ZY_oc_NHD_Ast1 = Zhou_ocNHD_Ast1_down, ZY_oc_NHD_Ast2 = Zhou_ocNHD_Ast2_down, LH_pu_HD_Ast0 = Lee_puHD_Ast0_down, LH_pu_HD_Ast2 = Lee_puHD_Ast2_down, LH_pu_HD_Ast4 =  Lee_puHD_Ast4_down, LH_cd_HD_Ast0 = Lee_cdHD_Ast0_down, LH_cd_HD_Ast2 = Lee_cdHD_Ast2_down, LH_cd_HD_Ast5 = Lee_cdHD_Ast5_down,  GM_mtg_AD_Ast0 = Gabitto_SEA_mtgAD_Ast0_down, GM_mtg_AD_Ast1 = Gabitto_SEA_mtgAD_Ast1_down, GM_mtg_AD_AstInt = Gabitto_SEA_mtgAD_AstInt_down, GM_mtg_AD_Ast2 = Gabitto_SEA_mtgAD_Ast2_down, GM_mtg_AD_Ast6 =  Gabitto_SEA_mtgAD_Ast6_down, GM_mtg_AD_Ast7 = Gabitto_SEA_mtgAD_Ast7_down)
+
+#Mirror_Barplot for Number of DEGs
+#to differentaite up and down regulted DEGs by barplot
+downregulated <- sapply(Downregulated_DEGs, length) *-1
+upregulated <- sapply(Upregulated_DEGs, length)
+
+Clusters <- c("GA_ec_AD_Ast0", "GA_ec_AD_Ast1", "GA_ec_AD_Ast2", "FR_acc_DLBD_Ast0", "FR_acc_DLBD_Ast1", "FR_acc_DLBD_Ast2", "FR_acc_PD_Ast0", "FR_acc_PD_Ast1", "FR_acc_PD_Ast2", "FR_acc_PDD_Ast0", "FR_acc_PDD_Ast1", "FR_acc_PDD_Ast2", "LS_pfc_AD_Ast0", "LS_pfc_AD_Ast1", "LS_pfc_AD_Ast2", "LS_pfc_AD_Ast3", "XJ_pu_AD_Ast0", "XJ_pu_AD_Ast1", "XJ_pu_AD_Ast2", "XJ_pu_PD_Ast0", "XJ_pu_PD_Ast1", "XJ_pu_PD_Ast2", "ZY_oc_NHD_Ast0", "ZY_oc_NHD_Ast1", "ZY_oc_NHD_Ast2", "LH_pu_HD_Ast0", "LH_pu_HD_Ast2", "LH_pu_HD_Ast4", "LH_cd_HD_Ast0", "LH_cd_HD_Ast2", "LH_cd_HD_Ast5", "GM_mtg_AD_Ast0", "GM_mtg_AD_Ast1", "GM_mtg_AD_AstInt", "GM_mtg_AD_Ast2", "GM_mtg_AD_Ast6", "GM_mtg_AD_Ast7")
+
+#factor the levels
+Clusters   <- factor(Clusters  ,levels = c("GA_ec_AD_Ast0", "GA_ec_AD_Ast1", "GA_ec_AD_Ast2", "FR_acc_DLBD_Ast0", "FR_acc_DLBD_Ast1", "FR_acc_DLBD_Ast2", "FR_acc_PD_Ast0", "FR_acc_PD_Ast1", "FR_acc_PD_Ast2", "FR_acc_PDD_Ast0", "FR_acc_PDD_Ast1", "FR_acc_PDD_Ast2", "LS_pfc_AD_Ast0", "LS_pfc_AD_Ast1", "LS_pfc_AD_Ast2", "LS_pfc_AD_Ast3", "XJ_pu_AD_Ast0", "XJ_pu_AD_Ast1", "XJ_pu_AD_Ast2", "XJ_pu_PD_Ast0", "XJ_pu_PD_Ast1", "XJ_pu_PD_Ast2", "ZY_oc_NHD_Ast0", "ZY_oc_NHD_Ast1", "ZY_oc_NHD_Ast2", "LH_pu_HD_Ast0", "LH_pu_HD_Ast2", "LH_pu_HD_Ast4", "LH_cd_HD_Ast0", "LH_cd_HD_Ast2", "LH_cd_HD_Ast5", "GM_mtg_AD_Ast0", "GM_mtg_AD_Ast1", "GM_mtg_AD_AstInt", "GM_mtg_AD_Ast2", "GM_mtg_AD_Ast6", "GM_mtg_AD_Ast7"))
+
+df <- data.frame(Clusters, upregulated, downregulated)
+meltData <- melt(df, id=c("Clusters"))
+
+svg("MirrorPlot_Number_of_upregulated_and_downregulated_DEG_in_all_datasets.svg", width = 17,  height = 13,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(meltData, aes(fill = variable, y = value, x = factor(Clusters  ,levels = c("GA_ec_AD_Ast0", "GA_ec_AD_Ast1", "GA_ec_AD_Ast2", "FR_acc_DLBD_Ast0", "FR_acc_DLBD_Ast1", "FR_acc_DLBD_Ast2", "FR_acc_PD_Ast0", "FR_acc_PD_Ast1", "FR_acc_PD_Ast2", "FR_acc_PDD_Ast0", "FR_acc_PDD_Ast1", "FR_acc_PDD_Ast2", "LS_pfc_AD_Ast0", "LS_pfc_AD_Ast1", "LS_pfc_AD_Ast2", "LS_pfc_AD_Ast3", "XJ_pu_AD_Ast0", "XJ_pu_AD_Ast1", "XJ_pu_AD_Ast2", "XJ_pu_PD_Ast0", "XJ_pu_PD_Ast1", "XJ_pu_PD_Ast2", "ZY_oc_NHD_Ast0", "ZY_oc_NHD_Ast1", "ZY_oc_NHD_Ast2", "LH_pu_HD_Ast0", "LH_pu_HD_Ast2", "LH_pu_HD_Ast4", "LH_cd_HD_Ast0", "LH_cd_HD_Ast2", "LH_cd_HD_Ast5", "GM_mtg_AD_Ast0", "GM_mtg_AD_Ast1", "GM_mtg_AD_AstInt", "GM_mtg_AD_Ast2", "GM_mtg_AD_Ast6", "GM_mtg_AD_Ast7")))) + geom_bar(position = ("identity"), stat = "identity") + scale_fill_manual(values = c("red", "blue")) +
+  guides(fill = guide_legend(title = "")) +
+  scale_y_continuous(breaks=c(-100, -500, -1000, -1500, 0, 100, 500, 1000, 1500)) +
+  labs(x = "", y = "Number of DEG") +
+  theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + 
+        theme(axis.text=element_text(size=18), axis.text.x = element_text(angle = 70, hjust = 1), axis.title.y=element_text(size=20), legend.text = element_text(size = 15), legend.key.size = unit(0.7, 'cm'), legend.title = element_text(size=15, face = "bold"))
+        dev.off()
+
+```{r}
+
+# DEG Gene Ontology and KEGG Analysis (same as conserved marker GO and KEGG)
+
+```
+
+
+# select certain terms to plot for DEG GO
+# DEG_Ast_regulated_ENTREZID_combined_DEG contains the enriched pathway for all DEGs merged for all subpopulations from the same data.
+
+PatternOfInterest <- c("regulation of endocytosis", "positive regulation of endocytosis", "receptor-mediated endocytosis", "regulation of receptor-mediated endocytosis", "synaptic vesicle endocytosis", "clathrin-dependent endocytosis", "clathrin-coated pit", "caveola", "endocytic vesicle", "endosomal transport", "early endosome membrane", "recycling endosome membrane", "Golgi apparatus subcompartment", "trans-Golgi network", "Wnt signaling pathway", "cell-cell signaling by wnt", "regulation of Wnt signaling pathway", "negative regulation of Wnt signaling pathway", "canonical Wnt signaling pathway", "regulation of canonical Wnt signaling pathway", "positive regulation of Wnt signaling pathway", "small GTPase mediated signal transduction", "regulation of small GTPase mediated signal transduction", "JNK cascade", "actin filament organization", "microtubule binding", "lamellipodium", "cell leading edge", "glutamatergic synapse", "postsynaptic specialization", "neuron to neuron synapse", "beta-catenin binding", "establishment or maintenance of cell polarity", "phagocytosis", "focal adhesion", "cell-substrate junction", "filopodium", "regulation of trans-synaptic signaling", "collagen-containing extracellular matrix", "synaptic membrane")
+
+
+# ##########################
+# dont' need to change below except ploting
+List_TermOfInterest <- list()
+
+for (pat in  PatternOfInterest ) {
+  temp <- grep(pattern = pat, x = as.data.frame(Subpopulation_combined_DEG_Ast_compGO_result_All)$Description , value = TRUE)
+  List_TermOfInterest <- append(List_TermOfInterest, temp)
+}
+
+TermOfInterest <- do.call("rbind", List_TermOfInterest)
+TermOfInterest <- unique(as.data.frame(TermOfInterest)$V1)
+
+temp <- as.data.frame(Subpopulation_combined_DEG_Ast_compGO_result_All)
+# to get all terms contain the pattern
+#selectedTerm = temp[which (temp$Description %in% TermOfInterest),]
+
+# to get terms only in PatternOfInterest
+selectedTerm = temp[which (temp$Description %in% PatternOfInterest),]
+
+#reorder the terms (on the x-axis) and plot
+temp_selectedTerm_compareClusterResult <- as.data.frame(selectedTerm)
+
+# Get the terms the top enriched terms (based on increasing p.adjust) per cluster
+list_terms_ranked.by.p.adjust <- list()
+for (i in names(DEG_Ast_regulated)){
+  # Extract the corresponding data frame from temp_selectedTerm_compareClusterResult
+  temp_table <- temp_selectedTerm_compareClusterResult[which(temp_selectedTerm_compareClusterResult$Cluster == i), ]
+  # Order the data frame by p.adjust in increasing order
+  temp_table <- temp_table[order(temp_table$p.adjust), ]
+  # Extract the top 2 enriched terms for the cluster and store them in the list
+  list_terms_ranked.by.p.adjust[[i]] <- temp_table$Description[1:27]
+}
+
+list_Descriptions <- unlist(list_terms_ranked.by.p.adjust) %>% unique
+list_Descriptions <- list_Descriptions[!is.na(list_Descriptions)] #remove NA values
+
+# Construct the data table for plotting 
+# Convert GeneRatio from a string to decimal via parse and eval functions
+temp_selectedTerm_compareClusterResult$Gene_Ratio <- NA
+for (n in 1:nrow(temp_selectedTerm_compareClusterResult)){ 
+  temp_selectedTerm_compareClusterResult[n,"Gene_Ratio"] <- parse(text = temp_selectedTerm_compareClusterResult[n, "GeneRatio"]) %>% eval
+}
+
+# Create rows for clusters which does not show any enrichment in the Top2 from prior plot (e.g. LH_pu_Ast4_HD)
+temp_df <- data.frame(Cluster = rep(c("FR_accPDD_up", "FR_accPD_up", "LS_pfcAD_up", "FR_accPDD_down"), times = length(list_Descriptions)),
+                      ONTOLOGY = rep(NA, times = length(list_Descriptions)),
+                      ID = rep(NA, times = length(list_Descriptions)),
+                      Description = list_Descriptions, 
+                      GeneRatio = rep("0", times = length(list_Descriptions)),
+                      BgRatio = rep("0", times = length(list_Descriptions)),
+                      RichFactor = rep("0", times = length(list_Descriptions)),
+                      FoldEnrichment = rep("0", times = length(list_Descriptions)),
+                      zScore = rep("0", times = length(list_Descriptions)),
+                      pvalue = rep(0, times = length(list_Descriptions)),
+                      p.adjust = rep(0, times = length(list_Descriptions)),
+                      qvalue = rep(0, times = length(list_Descriptions)),
+                      geneID = rep(NA, times = length(list_Descriptions)),
+                      Count = rep(0, times = length(list_Descriptions)),
+                      GeneRatio_numeric = rep("0", times = length(list_Descriptions)),
+                      Gene_Ratio = rep(NA, times = length(list_Descriptions)))
+
+temp_selectedTerm_compareClusterResult <- rbind(temp_selectedTerm_compareClusterResult, temp_df)
+
+table_row.nums <- c()
+for(i in list_Descriptions){
+  table_row.nums <- c(table_row.nums, which(temp_selectedTerm_compareClusterResult$Description == i))
+}
+
+#Assign another name to the list of description
+Descriptions <- list_Descriptions
+#write out the desired order levels of the variable in the list
+Descriptions <- c("phagocytosis", "endocytic vesicle", "clathrin-coated pit", "caveola", "positive regulation of endocytosis", "receptor-mediated endocytosis","synaptic vesicle endocytosis", "clathrin-dependent endocytosis", "regulation of endocytosis",  "regulation of receptor-mediated endocytosis", "endosomal transport", "early endosome membrane", "recycling endosome membrane", "Golgi apparatus subcompartment", "trans-Golgi network", "Wnt signaling pathway", "cell-cell signaling by wnt", "regulation of Wnt signaling pathway", "negative regulation of Wnt signaling pathway", "canonical Wnt signaling pathway", "regulation of canonical Wnt signaling pathway", "positive regulation of Wnt signaling pathway", "beta-catenin binding", "small GTPase mediated signal transduction", "regulation of small GTPase mediated signal transduction", "JNK cascade", "actin filament organization", "microtubule binding", "lamellipodium", "filopodium", "cell leading edge", "establishment or maintenance of cell polarity", "focal adhesion", "collagen-containing extracellular matrix", "cell-substrate junction", "regulation of trans-synaptic signaling", "postsynaptic specialization", "neuron to neuron synapse", "glutamatergic synapse",  "synaptic membrane") 
+
+#set the order levels of factor variable
+Descriptions <- factor(Descriptions, levels = Descriptions)
+
+# Specify the order in the Dot Plot via factor()
+temp_selectedTerm_compareClusterResult$Description <- factor(temp_selectedTerm_compareClusterResult$Description, levels = rev(Descriptions))
+
+# Reformatted DotPlot using SCENIC::doHeatMap to include all clusters in axis (even those with no enriched terms)
+svg("2024_12_23_Ast_Subpopulation_combined_DEG_compGO_selected_ordered.svg", width = 14.5,  height = 11.8,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+
+png("2024_12_23_Ast_Subpopulation_combined_DEG_compGO_selected_ordered.png", width = 12*500, height = 8*650, res = 300, pointsize = 4)
+dotHeatmap(temp_selectedTerm_compareClusterResult[table_row.nums,c("Cluster", "Description", "Gene_Ratio", "p.adjust")], var.y = "Description", var.x = "Cluster", var.col = "p.adjust", 
+           col.low = "red2" , col.mid = "indianred2", col.high = "blue", #cerulean
+           var.size = "Gene_Ratio", min.size = 4, max.size = 9) &
+  theme(axis.text.x = element_text(angle = 70, size = 22, color = "black"), 
+        axis.text.y = element_text(size = 22, color = "black"), legend.title=element_text(size=15), legend.key.size = unit(0.6, 'cm'))
+dev.off()
+
+
+

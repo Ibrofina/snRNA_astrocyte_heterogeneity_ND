@@ -1,0 +1,1375 @@
+---
+title: "Plots from all astrocytes objects"
+author: "Ibrahim Saliu"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+setwd("C:/ibrahim/Plots")
+
+```{r setup, include=FALSE}
+
+library('Seurat')
+library(sctransform)
+library(cowplot)
+library(gplots) # for heatmap
+library(RColorBrewer) # colorRampPalette(), brewer.pal
+library(ggplot2) # qplot(), position_nudge(), geom_text()
+library(dplyr)
+library("limma")
+library(VennDiagram)
+library(reshape)
+library("ggpubr")
+library(UpSetR)
+library(gplots) # for heatmap2
+library(VennDiagram)
+library(multtest)
+library(metap)
+library("ggrepel") # for Volcano plot
+library(Hmisc) # for correlation and correlation plot
+library(corrplot)
+library(ComplexHeatmap)
+library('purrr')
+
+```
+
+options(future.globals.maxSize = 8000 * 1024^8)
+
+```{r}
+
+#Lau data
+Lau_Ast_FinalObj <- readRDS("C:/ibrahim/Astrocyte_Psuedotime_analysis/2020_Lau_Astrocyte_ClusterRenamed_dim15_res0.25_ObjFinal.rds")
+
+#plot
+p1 <- DimPlot(Lau_PFC_Ast_FinalObj, reduction = "umap", pt.size = 1, cols =c("coral3", "deepskyblue3", "goldenrod2", "gray47"), label = F) + theme(legend.text = element_text(size = 10)) + theme(legend.key.size = unit(0.4, 'cm'))
+png("Lau_PFC_AD_Astrocyte_dim15_res0.25_RenamedCluster.png",    
+  width = 5*400,        # 5 x 300 pixels
+  height = 4*400,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  p1
+dev.off()
+
+#know all the name of the sample 
+table(Lau_PFC_Ast_FinalObj@meta.data$orig.ident) 
+
+#open a new column and assign it the element in orig. ident
+Lau_PFC_Ast_FinalObj$SampleNo <- Lau_PFC_Ast_FinalObj@meta.data$orig.ident
+
+#Replace All Matching Rows in orig.ident in metadata with a Single Value
+Lau_PFC_Ast_FinalObj@meta.data$SampleNo <- ifelse(Lau_PFC_Ast_FinalObj@meta.data$SampleNo == "AD1", "AD_1", Lau_PFC_Ast_FinalObj@meta.data$SampleNo) # replace all the sampleNo with "AD1" to "AD_1"
+
+#.svg format
+svg("Lau_UMAP.svg", width = 5,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Lau_PFC_Ast_FinalObj, reduction = "umap", pt.size = 0.8, cols =c("coral3", "deepskyblue3", "goldenrod2", "gray47"), label = F) + theme(axis.text.y=element_text(size=10), axis.text.x=element_text(size=10)) + theme(axis.title.x = element_text(size=10), axis.title.y = element_text(size=10)  +  theme(legend.title = element_text(face = "bold", size = 8)) + theme(legend.text = element_text(size = 6)))
+dev.off()
+
+# cluster by sample
+svg("Lau_bySample.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+p1 <- DimPlot(Lau_PFC_Ast_FinalObj, reduction = "umap", pt.size = 0.3, label = F, group.by = "SampleNo") + theme(legend.text = element_text(size = 13)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+p1
+dev.off()
+
+# cluster by disease
+svg("Lau_byGenotype.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+p1 <- DimPlot(Lau_PFC_Ast_FinalObj, reduction = "umap", pt.size = 0.3, label = F, group.by = "Genotype", cols = c("green", "red")) + theme(legend.text = element_text(size = 15)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+p1
+dev.off()
+
+# Do the statistical differences in cell distribution between the genotypes using One-way ANOVA with 99% confidence level
+pct_cells <- prop.table(table(Idents(Lau_PFC_Ast_FinalObj), Lau_PFC_Ast_FinalObj$SampleNo), margin = 2) *100
+test_data <- as.data.frame(t(as.data.frame.matrix(pct_cells)))
+
+#test_data$Ast2 <- test_data$"1"
+#test_data$"1" <- NULL
+Genotype <- c(rep("CTRL", 9), rep("AD", 10))
+test_data <- cbind(test_data, Genotype)
+
+# code worked, to display the percentage of cells in each cluster
+library(reshape)
+
+meltData <- melt(test_data, id=c("Genotype"))
+meltData$Genotype <- factor(meltData$Genotype,levels = c("CTRL", "AD"))
+meltData$variable <- factor(meltData$variable,levels = c("Ast-0", "Ast-1", "Ast-2", "Ast-3"))
+
+#cell distribution and sample distribution
+svg("Lau_PFC_Ast_Sample_statistics_CellProportion_ScaterPlot.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+ggplot(meltData, aes(x= Genotype, y=value, group = Genotype, color = Genotype, fill = Genotype)) +
+    scale_color_manual(values=c("green", "red")) +
+  geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
+  labs(x = "Genotype", y = "% distribution of astrocyte") + facet_wrap( variable ~ ., ncol=4, scales="free_y") +
+  theme(legend.position="none", axis.text=element_text(size=18.5), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) +
+  theme(strip.text.x = element_text(size=19, face = "bold"))
+  dev.off()
+
+#significant differences in the distribution of cells between the samples
+res.aov_PercentCell <- aov(value ~ Genotype, data = meltData)
+summary(res.aov_PercentCell)
+TukeyHSD(res.aov_PercentCell, conf.level = 0.99)
+
+# Cell distribution in each disease condition
+svg("Lau_PFC_Ast_Cell_Distribution_In_Each_Disease_Group.svg", width = 7,  height = 6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(meltData, aes(fill=variable, y=value, x= Genotype)) + 
+    geom_bar(position="fill", stat="identity") +   theme(axis.text=element_text(size=20), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) + ylab("Proportion of astrocyte subpopulation") + theme(legend.title= element_blank(), legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.4, 'cm')) +
+    scale_fill_manual(values = c("coral3", "deepskyblue3", "goldenrod2", "gray47"))  + labs(fill='Cluster')
+dev.off()
+
+
+#unique markers
+markerAst_vln <- c('GPC5', 'GJA1', 'VCAN') 
+
+png("Lau_PFC_AD_Astrocyte_dim15_res0.25_Vln.png",      
+    width = 4*400,        # 5 x 300 pixels
+    height = 6*650,
+    res = 300,            # 300 pixels per inch
+    pointsize = 3)        # smaller font size
+VlnPlot(Lau_PFC_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =1, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=20), axis.text.x=element_text(angle=45, hjust=1, size=27), axis.text.y=element_text( size=25)) 
+dev.off()
+
+#.svg format
+svg("Lau_PFC_AD_Astrocyte_dim15_res0.25_Vln.svg", width = 7,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lau_PFC_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=13), axis.text.x=element_text(angle=45, hjust=1, size=19), axis.text.y=element_text( size=13)) 
+dev.off()
+
+
+# Dot plot
+# markers for all cell types in reverse order
+marker_genes <- c( "GPC5", "NRXN1", "TRPM3", "APOE", "CST3", "FTL", "CKB", "CLU", "ITM2C", "CPE", "TUBB2B", "VIM", "GLUL", "PSAP", "GJA1", "AGT", "ENO1", "DPP10", "GFAP", "PLEKHA5", "VCAN", "KAZN")  
+
+png("Lau_PFC_AD_Astrocyte_dim15_res0.25_DotPlot.png",      
+    width = 9*250, height = 3*250, res = 300, pointsize = 5)   
+  DotPlot(Lau_PFC_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+  theme(legend.title = element_text(face = "bold", size = 8)) + theme(axis.title.x = element_blank()) + theme(legend.text = element_text(size = 6)) + theme(legend.key.size = unit(0.2, 'cm')) + RotatedAxis()
+dev.off()
+
+#.svg format
+svg("Lau_PFC_AD_Astrocyte_dim15_res0.25_DotPlot.svg", width = 7,  height =2.3,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DotPlot(Lau_PFC_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+ theme(axis.text.y=element_text(size=20), axis.text.x=element_blank(), legend.title = element_text(face = "bold", size = 9)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.position="none") + RotatedAxis()
+dev.off()
+
+
+#vlnplot for the number of genes, umi, mito genes detected in the nuclei and the number of nuclei showing the median value
+png("Lau_PFC_AD_Astrocyte_dim15_res0.25_metric_genes.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Lau_PFC_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Lau_PFC_AD_Astrocyte_dim15_res0.25_metric_genes.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lau_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Lau_PFC_AD_Astrocyte_dim15_res0.25_metric_umi.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Lau_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Lau_PFC_AD_Astrocyte_dim15_res0.25_metric_umi.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lau_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Lau_PFC_AD_Astrocyte_dim15_res0.25_metric_mtper.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Lau_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Lau_PFC_AD_Astrocyte_dim15_res0.25_metric_mtper.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lau_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.6))) + theme(legend.position="none")
+dev.off()
+
+```
+
+#Grubman data
+Grubman_Ast_FinalObj <- readRDS("C:/ibrahim/Astrocyte_Psuedotime_analysis/2019_Grubman_Astrocyte_ClusterRenamed_dim15_res0.25_ObjFinal.rds")
+
+#plot
+p1 <- DimPlot(Grubman_Ast_FinalObj, reduction = "umap", pt.size = 1.5, cols =c("coral3", "deepskyblue3", "goldenrod2", "gray47"), label = F) + theme(legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.6, 'cm'))
+png("Grubman_EC_AD_Astrocyte_dim15_res0.25_RenamedCluster.png",    
+  width = 5*400,        # 5 x 300 pixels
+  height = 4*400,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  p1
+dev.off()
+
+#.svg format
+svg("Grubman_EC_AD_Astrocyte_dim15_res0.25_RenamedCluster.svg", width = 10,  height = 9,  onefile = TRUE, pointsize = 13, family = "Arial", antialias = "gray")
+p1 <- DimPlot(Grubman_Ast_FinalObj, reduction = "umap", pt.size = 2, cols =c("coral3", "deepskyblue3", "goldenrod2", "gray47"), label = F) + theme(legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.6, 'cm'))
+p1
+dev.off()
+
+
+#know all the name of the sample 
+table(Grubman_EC_Ast_FinalObj@meta.data$orig.ident) 
+
+#open a new column and assign it the element in orig. ident
+Grubman_EC_Ast_FinalObj$SampleNo <- Grubman_EC_Ast_FinalObj@meta.data$orig.ident
+
+#Replace All Matching Rows in orig.ident in metadata with a Single Value
+Grubman_EC_Ast_FinalObj@meta.data$SampleNo <- ifelse(Grubman_EC_Ast_FinalObj@meta.data$SampleNo == "Ct5", "CTRL_3", Grubman_EC_Ast_FinalObj@meta.data$SampleNo) # replace all the sampleNo with "Ct5" to "CTRL_3"
+
+#.svg format
+svg("Grubman_UMAP.svg", width = 5,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Grubman_EC_Ast_FinalObj, reduction = "umap", pt.size = 1.5, cols =c("coral3", "deepskyblue3", "goldenrod2"), label = F) + theme(axis.text.y=element_text(size=10), axis.text.x=element_text(size=10)) + theme(axis.title.x = element_text(size=10), axis.title.y = element_text(size=10)) & NoLegend()
+dev.off()
+
+# cluster by sample
+svg("Grubman_bySample.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Grubman_EC_Ast_FinalObj, reduction = "umap", pt.size = 1.2, label = F, group.by = "SampleNo") + theme(legend.text = element_text(size = 13)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# cluster by disease
+svg("Grubman_byGenotype.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Grubman_EC_Ast_FinalObj, reduction = "umap", pt.size = 1.2, label = F, group.by = "Genotype", cols = c("green", "red")) + theme(legend.text = element_text(size = 15)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# Do the statistical differences in cell distribution between the genotypes using One-way ANOVA with 99% confidence level
+pct_cells <- prop.table(table(Idents(Grubman_Ast_FinalObj), Grubman_Ast_FinalObj$SampleNo), margin = 2) *100
+test_data <- as.data.frame(t(as.data.frame.matrix(pct_cells)))
+
+#test_data$Ast2 <- test_data$"1"
+#test_data$"1" <- NULL
+Genotype <- c(rep("CTRL", 3), rep("AD", 3))
+test_data <- cbind(test_data, Genotype)
+
+# code worked, to display the percentage of cells in each cluster
+library(reshape)
+meltData <- melt(test_data, id=c("Genotype"))
+
+# reformat the column in the melta dataframe
+meltData$Genotype <- ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "AD", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-1" & meltData$Genotype == "AD", paste0(meltData$Genotype, "1"),
+                      ifelse(meltData$variable == "Ast-1" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "1"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "AD", paste0(meltData$Genotype, "0"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "0"),
+                      meltData$Genotype))))))
+
+#meltData$Genotype <- factor(meltData$Genotype,levels = c("CTRL", "AD"))
+meltData$variable <- factor(meltData$variable,levels = c("Ast-0", "Ast-1", "Ast-2"))
+
+#cell distribution and sample distribution
+svg("Grubman_EC_Ast_Sample_statistics_CellProportion_ScaterPlot.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+ggplot(meltData, aes(x= Genotype, y=value, group = Genotype, color = Genotype, fill = Genotype)) +
+    scale_color_manual(values=c("green", "red")) +
+  geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
+  labs(x = "Genotype", y = "% distribution of astrocyte") + facet_wrap( variable ~ ., ncol=4, scales="free_y") +
+  theme(legend.position="none", axis.text=element_text(size=18.5), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) +
+  theme(strip.text.x = element_text(size=19, face = "bold"))
+  dev.off()
+
+#significant differences in the distribution of cells between the samples
+res.aov_PercentCell <- aov(value ~ variable, data = meltData)
+summary(res.aov_PercentCell)
+TukeyHSD(res.aov_PercentCell, conf.level = 0.99)
+
+# Cell distribution in each disease condition
+svg("Grubman_EC_Ast_Cell_Distribution_In_Each_Disease_Group.svg", width = 7,  height = 6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(meltData, aes(fill=variable, y=value, x= Genotype)) + 
+    geom_bar(position="fill", stat="identity") +   theme(axis.text=element_text(size=20), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) + ylab("Proportion of astrocyte subpopulation") + theme(legend.title= element_blank(), legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.4, 'cm')) +
+    scale_fill_manual(values = c("coral3", "deepskyblue3", "goldenrod2"))  + labs(fill='Cluster')
+dev.off()
+
+
+#unique markers
+markerAst_vln <- c('GPC5', 'GJA1', 'VCAN') 
+
+png("Grubman_EC_AD_Astrocyte_dim15_res0.25_Vln.png",      
+    width = 4*400,        # 5 x 300 pixels
+    height = 6*650,
+    res = 300,            # 300 pixels per inch
+    pointsize = 3)        # smaller font size
+VlnPlot(Grubman_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =1, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=20), axis.text.x=element_text(angle=45, hjust=1, size=27), axis.text.y=element_text( size=25)) 
+dev.off()
+
+#.svg format
+svg("Grubman_EC_AD_Astrocyte_dim15_res0.25_Vln.svg", width = 7,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Grubman_EC_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "deepskyblue3", "goldenrod2"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=13), axis.text.x=element_text(angle=45, hjust=1, size=19), axis.text.y=element_text( size=13)) 
+dev.off()
+
+
+# Dot plot
+# markers for all cell types in reverse order
+marker_genes <- c( "GPC5", "NRXN1", "TRPM3", "APOE", "CST3", "FTL", "CKB", "CLU", "ITM2C", "CPE", "TUBB2B", "VIM", "GLUL", "PSAP", "GJA1", "AGT", "ENO1", "DPP10", "GFAP", "PLEKHA5", "VCAN", "KAZN")  
+
+png("Grubman_EC_AD_Astrocyte_dim15_res0.25_DotPlot.png",      
+    width = 9*250, height = 3*250, res = 300, pointsize = 5)   
+  DotPlot(Grubman_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+  theme(legend.title = element_text(face = "bold", size = 8)) + theme(axis.title.x = element_blank()) + theme(legend.text = element_text(size = 6)) + theme(legend.key.size = unit(0.2, 'cm')) + RotatedAxis()
+dev.off()
+
+#.svg format
+svg("Grubman_EC_AD_Astrocyte_dim15_res0.25_DotPlot.svg", width = 7,  height =2,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DotPlot(Grubman_EC_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+ theme(axis.text.y=element_text(size=20), axis.text.x=element_blank(), legend.title = element_text(face = "bold", size = 9)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.position="none") + RotatedAxis()
+dev.off()
+
+
+#vlnplot for the number of genes, umi, mito genes detected in the nuclei and the number of nuclei showing the median value
+png("Grubman_EC_AD_Astrocyte_dim15_res0.25_metric_genes.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Grubman_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Grubman_EC_AD_Astrocyte_dim15_res0.25_metric_genes.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Grubman_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Grubman_EC_AD_Astrocyte_dim15_res0.25_metric_umi.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Grubman_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Grubman_EC_AD_Astrocyte_dim15_res0.25_metric_umi.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Grubman_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Grubman_EC_AD_Astrocyte_dim15_res0.25_metric_mtper.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Grubman_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Grubman_EC_AD_Astrocyte_dim15_res0.25_metric_mtper.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Grubman_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.6))) + theme(legend.position="none")
+dev.off()
+
+
+```{r}
+
+Feleke_Ast_FinalObj <- readRDS("C:/ibrahim/Astrocyte_Psuedotime_analysis/Human_2021_Feleke_ACC_Astrocyte_Pseudotime/Feleke_LBD_Astrocyte_MergedClusterRenamed_dim15_res0.25_CleanObj_Final.rds")
+
+#renamed cluster and merge cluster 2 and 3 to Ast-2 instead of Ast 2.1 and 2.2
+new.cluster.ids <- c( "Ast-0", "Ast-2",  "Ast-2", "Ast-1")
+names(new.cluster.ids) <- levels(Feleke_Ast_FinalObj)
+Feleke_Ast_FinalObj <- RenameIdents(Feleke_Ast_FinalObj, new.cluster.ids)
+
+# set the order for CTRL, AD and PD
+Feleke_Ast_FinalObj@meta.data$Genotype <- factor(Feleke_Ast_FinalObj@meta.data$Genotype,levels = c("CTRL", "DLBD", "PD", "PDD"))
+
+# set the order for "Ast-0", "Ast-1",  "Ast-2"
+Feleke_Ast_FinalObj@active.ident <- factor(Feleke_Ast_FinalObj@active.ident,levels = c("Ast-0", "Ast-1", "Ast-2"))
+
+#Feleke data
+p1 <- DimPlot(Feleke_Ast_FinalObj, reduction = "umap", pt.size = 1, cols =c("coral3", "deepskyblue3", "goldenrod2", "gray47"), label = F) + theme(legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.6, 'cm'))
+png("Feleke_ACC_AD_Astrocyte_dim15_res0.20_RenamedCluster.png",    
+  width = 5*400,        # 5 x 300 pixels
+  height = 4*400,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  p1
+dev.off()
+
+
+saveRDS(Feleke_Ast_FinalObj, file= "C:/ibrahim/Astrocyte_Psuedotime_analysis/Human_2021_Feleke_ACC_Astrocyte_Pseudotime/Feleke_LBD_Astrocyte_MergedClusterRenamed_dim15_res0.25_CleanObj_Final.rds")
+
+#know all the name of the sample 
+table(Feleke_ACC_Ast_FinalObj@meta.data$orig.ident) 
+
+#open a new column and assign it the element in orig. ident
+Feleke_ACC_Ast_FinalObj$SampleNo <- Feleke_ACC_Ast_FinalObj@meta.data$orig.ident
+
+#Replace All Matching Rows in orig.ident in metadata with a Single Value
+Feleke_ACC_Ast_FinalObj@meta.data$SampleNo <- ifelse(Feleke_ACC_Ast_FinalObj@meta.data$SampleNo == "PD_4_ACC_PD666", "PD_4", Feleke_ACC_Ast_FinalObj@meta.data$SampleNo) # replace all the sampleNo with "PD_4_ACC_PD666" to "PD_4"
+
+#.svg format
+svg("Feleke_UMAP.svg", width = 5,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Feleke_ACC_Ast_FinalObj, reduction = "umap", pt.size = 0.7, cols =c("coral3", "deepskyblue3", "goldenrod2"), label = F) + theme(axis.text.y=element_text(size=10), axis.text.x=element_text(size=10)) + theme(axis.title.x = element_text(size=10), axis.title.y = element_text(size=10)) & NoLegend()
+dev.off()
+
+# cluster by sample
+svg("Feleke_bySample.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Feleke_ACC_Ast_FinalObj, reduction = "umap", pt.size = 0.6, label = F, group.by = "SampleNo") + theme(legend.text = element_text(size = 12)) + theme(legend.key.size = unit(0.35, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# cluster by disease
+svg("Feleke_byGenotype.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Feleke_ACC_Ast_FinalObj, reduction = "umap", pt.size = 0.6, label = F, group.by = "Genotype", cols = c("green",  "orange1", "blue", "purple2")) + theme(legend.text = element_text(size = 15)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# Do the statistical differences in cell distribution between the genotypes using One-way ANOVA with 99% confidence level
+pct_cells <- prop.table(table(Idents(Feleke_ACC_Ast_FinalObj), Feleke_ACC_Ast_FinalObj$SampleNo), margin = 2) *100
+test_data <- as.data.frame(t(as.data.frame.matrix(pct_cells)))
+
+#test_data$Ast2 <- test_data$"1"
+#test_data$"1" <- NULL
+Genotype <- c(rep("CTRL", 7), rep("DLBD", 6), rep("PD", 7), rep("PDD", 7))
+test_data <- cbind(test_data, Genotype)
+
+# code worked, to display the percentage of cells in each cluster
+library(reshape)
+
+meltData <- melt(test_data, id=c("Genotype"))
+meltData$Genotype <- factor(meltData$Genotype,levels = c("CTRL", "DLBD", "PD", "PDD"))
+meltData$variable <- factor(meltData$variable,levels = c("Ast-0", "Ast-1", "Ast-2"))
+
+#cell distribution and sample distribution
+svg("Feleke_ACC_Ast_Sample_statistics_CellProportion_ScaterPlot.svg", width = 9,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+ggplot(meltData, aes(x= Genotype, y=value, group = Genotype, color = Genotype, fill = Genotype)) +
+    scale_color_manual(values=c("green",  "orange1", "blue", "purple2")) +
+  geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
+  labs(x = "Genotype", y = "% distribution of astrocyte") + facet_wrap( variable ~ ., ncol=4, scales="free_y") +
+  theme(legend.position="none", axis.text=element_text(size=16), axis.text.x=element_text(size=16), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) +
+  theme(strip.text.x = element_text(size=19, face = "bold"))
+  dev.off()
+
+#significant differences in the distribution of cells between the samples
+res.aov_PercentCell <- aov(value ~ Genotype, data = meltData)
+summary(res.aov_PercentCell)
+TukeyHSD(res.aov_PercentCell, conf.level = 0.99)
+
+# Cell distribution in each disease condition
+svg("Feleke_ACC_Ast_Cell_Distribution_In_Each_Disease_Group.svg", width = 7,  height = 6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(meltData, aes(fill=variable, y=value, x= Genotype)) + 
+    geom_bar(position="fill", stat="identity") +   theme(axis.text=element_text(size=20), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) + ylab("Proportion of astrocyte subpopulation") + theme(legend.title= element_blank(), legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.4, 'cm')) +
+    scale_fill_manual(values = c("coral3", "deepskyblue3", "goldenrod2"))  + labs(fill='Cluster')
+dev.off()
+
+
+#unique markers
+markerAst_vln <- c('GPC5', 'GJA1', 'VCAN') 
+
+png("Feleke_ACC_AD_Astrocyte_dim15_res0.20_Vln.png",      
+    width = 4*400,        # 5 x 300 pixels
+    height = 6*650,
+    res = 300,            # 300 pixels per inch
+    pointsize = 3)        # smaller font size
+VlnPlot(Feleke_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =1, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=20), axis.text.x=element_text(angle=45, hjust=1, size=27), axis.text.y=element_text( size=25)) 
+dev.off()
+
+#.svg format
+svg("Feleke_ACC_AD_Astrocyte_dim15_res0.20_Vln.svg", width = 7,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Feleke_ACC_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "deepskyblue3", "goldenrod2"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=13), axis.text.x=element_text(angle=45, hjust=1, size=19), axis.text.y=element_text( size=13)) 
+dev.off()
+
+# Dot plot
+# markers for all cell types in reverse order
+marker_genes <- c( "GPC5", "NRXN1", "TRPM3", "APOE", "CST3", "FTL", "CKB", "CLU", "ITM2C", "CPE", "TUBB2B", "VIM", "GLUL", "PSAP", "GJA1", "AGT", "ENO1", "DPP10", "GFAP", "PLEKHA5", "VCAN", "KAZN")  
+
+png("Feleke_ACC_Astrocyte_dim15_res0.25_DotPlot.png",      
+    width = 9*250, height = 3*250, res = 300, pointsize = 5)   
+  DotPlot(Feleke_ACC_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+  theme(legend.title = element_text(face = "bold", size = 8)) + theme(axis.title.x = element_blank()) + theme(legend.text = element_text(size = 6)) + theme(legend.key.size = unit(0.2, 'cm')) + RotatedAxis()
+dev.off()
+
+#.svg format
+svg("Feleke_ACC_Astrocyte_dim15_res0.25_DotPlot.svg", width = 7,  height =2,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DotPlot(Feleke_ACC_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+ theme(axis.text.y=element_text(size=20), axis.text.x=element_blank(), legend.title = element_text(face = "bold", size = 9)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.position="none") + RotatedAxis()
+dev.off()
+
+#vlnplot for the number of genes, umi, mito genes detected in the nuclei and the number of nuclei showing the median value
+png("Feleke_ACC_AD_Astrocyte_dim15_res0.25_metric_genes.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Feleke_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Feleke_ACC_AD_Astrocyte_dim15_res0.25_metric_genes.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Feleke_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Feleke_ACC_AD_Astrocyte_dim15_res0.25_metric_umi.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Feleke_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Feleke_ACC_AD_Astrocyte_dim15_res0.25_metric_umi.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Feleke_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Feleke_ACC_AD_Astrocyte_dim15_res0.25_metric_mtper.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Feleke_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Feleke_ACC_AD_Astrocyte_dim15_res0.25_metric_mtper.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Feleke_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.6))) + theme(legend.position="none")
+dev.off()
+
+```
+
+#Xu data
+Xu_Ast_FinalObj <- readRDS("C:/ibrahim/Astrocyte_Psuedotime_analysis/Putamen_data_pseudotime_analysis/Putamen_Astrocyte_FinalObj_dim15_res0.25_ClusterRenamed.rds")
+
+#plot
+p1 <- DimPlot(Xu_Ast_FinalObj, reduction = "umap", pt.size = 1.5, cols =c("coral3", "deepskyblue3", "goldenrod2", "gray47"), label = F) + theme(legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.6, 'cm'))
+png("Xu_PU_ADPD_Astrocyte_dim15_res0.25_RenamedCluster.png",    
+  width = 5*400,        # 5 x 300 pixels
+  height = 4*400,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  p1
+dev.off()
+
+
+#know all the name of the sample 
+table(Xu_Pu_Ast_FinalObj@meta.data$orig.ident) 
+
+#open a new column and assign it the element in orig. ident
+Xu_Pu_Ast_FinalObj$SampleNo <- Xu_Pu_Ast_FinalObj@meta.data$orig.ident
+
+#Replace All Matching Rows in orig.ident in metadata with a Single Value
+Xu_Pu_Ast_FinalObj@meta.data$SampleNo <- ifelse(Xu_Pu_Ast_FinalObj@meta.data$SampleNo == "AD_Pu_12265", "AD_1", Xu_Pu_Ast_FinalObj@meta.data$SampleNo) # replace all the sampleNo with "AD_Pu_12265" to "AD_1"
+
+#.svg format
+svg("Xu_UMAP.svg", width = 5,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Xu_Pu_Ast_FinalObj, reduction = "umap", pt.size = 1, cols =c("coral3", "deepskyblue3", "goldenrod2"), label = F) + theme(axis.text.y=element_text(size=10), axis.text.x=element_text(size=10)) + theme(axis.title.x = element_text(size=10), axis.title.y = element_text(size=10)) & NoLegend()
+dev.off()
+
+# cluster by sample
+svg("Xu_bySample.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Xu_Pu_Ast_FinalObj, reduction = "umap", pt.size = 0.8, label = F, group.by = "SampleNo") + theme(legend.text = element_text(size = 13)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# cluster by disease
+svg("Xu_byGenotype.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Xu_Pu_Ast_FinalObj, reduction = "umap", pt.size = 0.8, label = F, group.by = "Genotype", cols = c("green", "red", "blue")) + theme(legend.text = element_text(size = 15)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# Do the statistical differences in cell distribution between the genotypes using One-way ANOVA with 99% confidence level
+pct_cells <- prop.table(table(Idents(Xu_Ast_FinalObj), Xu_Ast_FinalObj$orig.ident), margin = 2) *100
+test_data <- as.data.frame(t(as.data.frame.matrix(pct_cells)))
+
+#test_data$Ast2 <- test_data$"1"
+#test_data$"1" <- NULL
+Genotype <- c(rep("CTRL", 4), rep("AD", 4), rep("PD", 4))
+test_data <- cbind(test_data, Genotype)
+
+# code worked, to display the percentage of cells in each cluster
+library(reshape)
+meltData <- melt(test_data, id=c("Genotype"))
+
+# reformat the column in the melta dataframe
+meltData$Genotype <- ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "HD", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-1" & meltData$Genotype == "HD", paste0(meltData$Genotype, "1"),
+                      ifelse(meltData$variable == "Ast-1" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "1"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "HD", paste0(meltData$Genotype, "0"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "0"),
+                      meltData$Genotype)))))) 
+                      
+meltData$Genotype <- factor(meltData$Genotype,levels = c("CTRL", "AD", "PD"))
+meltData$variable <- factor(meltData$variable,levels = c("Ast-0", "Ast-1", "Ast-2"))
+
+#cell distribution and sample distribution
+svg("Xu_Pu_Ast_Sample_statistics_CellProportion_ScaterPlot.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+ggplot(meltData, aes(x= Genotype, y=value, group = Genotype, color = Genotype, fill = Genotype)) +
+    scale_color_manual(values=c("green", "red", "blue")) +
+  geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
+  labs(x = "Genotype", y = "% distribution of astrocyte") + facet_wrap( variable ~ ., ncol=4, scales="free_y") +
+  theme(legend.position="none", axis.text=element_text(size=18.5), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) +
+  theme(strip.text.x = element_text(size=19, face = "bold"))
+  dev.off()
+
+#significant differences in the distribution of cells between the samples
+res.aov_PercentCell <- aov(value ~ variable, data = meltData)
+summary(res.aov_PercentCell)
+TukeyHSD(res.aov_PercentCell, conf.level = 0.99)
+
+# Cell distribution in each disease condition
+svg("Xu_Pu_Ast_Cell_Distribution_In_Each_Disease_Group.svg", width = 7,  height = 6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(meltData, aes(fill=variable, y=value, x= Genotype)) + 
+    geom_bar(position="fill", stat="identity") +   theme(axis.text=element_text(size=20), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) + ylab("Proportion of astrocyte subpopulation") + theme(legend.title= element_blank(), legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.4, 'cm')) +
+    scale_fill_manual(values = c("coral3", "deepskyblue3", "goldenrod2"))  + labs(fill='Cluster')
+dev.off()
+
+#unique markers
+markerAst_vln <- c('GPC5', 'GJA1', 'VCAN') 
+
+png("Xu_PU_ADPD_Astrocyte_dim15_res0.25_Vln.png",      
+    width = 4*400,        # 5 x 300 pixels
+    height = 6*650,
+    res = 300,            # 300 pixels per inch
+    pointsize = 3)        # smaller font size
+VlnPlot(Xu_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =1, cols = c("coral3", "deepskyblue3", "goldenrod2", "gray47"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=20), axis.text.x=element_text(angle=45, hjust=1, size=27), axis.text.y=element_text( size=25)) 
+dev.off()
+
+#.svg format
+svg("Xu_PU_ADPD_Astrocyte_dim15_res0.25_Vln.svg", width = 7,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Xu_Pu_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "deepskyblue3", "goldenrod2"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=13), axis.text.x=element_text(angle=45, hjust=1, size=19), axis.text.y=element_text( size=13)) 
+dev.off()
+
+# Dot plot
+# markers for all cell types in reverse order
+marker_genes <- c( "GPC5", "NRXN1", "TRPM3", "APOE", "CST3", "FTL", "CKB", "CLU", "ITM2C", "CPE", "TUBB2B", "VIM", "GLUL", "PSAP", "GJA1", "AGT", "ENO1", "DPP10", "GFAP", "PLEKHA5", "VCAN", "KAZN")  
+
+png("Xu_PU_ADPD_Astrocyte_dim15_res0.25_DotPlot.png",      
+    width = 9*250, height = 3*250, res = 300, pointsize = 5)   
+  DotPlot(Xu_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+  theme(legend.title = element_text(face = "bold", size = 8)) + theme(axis.title.x = element_blank()) + theme(legend.text = element_text(size = 6)) + theme(legend.key.size = unit(0.2, 'cm')) + RotatedAxis()
+dev.off()
+
+#.svg format
+svg("Xu_PU_ADPD_Astrocyte_dim15_res0.25_DotPlot.svg", width = 7,  height =2,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DotPlot(Xu_Pu_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+ theme(axis.text.y=element_text(size=20), axis.text.x=element_blank(), legend.title = element_text(face = "bold", size = 9)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.position="none") + RotatedAxis()
+dev.off()
+
+#vlnplot for the number of genes, umi, mito genes detected in the nuclei and the number of nuclei showing the median value
+png("Xu_PU_ADPD_Astrocyte_dim15_res0.25_metric_genes.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Xu_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei")  + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+
+# .svg format
+svg("Xu_PU_ADPD_Astrocyte_dim15_res0.25_metric_genes.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Xu_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Xu_PU_ADPD_Astrocyte_dim15_res0.25_metric_umi.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Xu_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Xu_PU_ADPD_Astrocyte_dim15_res0.25_metric_umi.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Xu_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Xu_PU_ADPD_Astrocyte_dim15_res0.25_metric_mtper.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Xu_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Xu_PU_ADPD_Astrocyte_dim15_res0.25_metric_mtper.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Xu_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.6))) + theme(legend.position="none")
+dev.off()
+
+
+```{r}
+
+#Lee data
+Lee_Pu_Ast_FinalObj <- readRDS("C:/ibrahim/Astrocyte_Psuedotime_analysis/Lee_Pu_HD_Astrocyte_dim15_res0.25_FinalObj.rds")
+
+#plot
+p1 <- DimPlot(Lee_Pu_Ast_FinalObj, reduction = "umap", pt.size = 1.5, cols =c("coral3", "goldenrod2", "mediumturquoise"), label = F) + theme(legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.6, 'cm'))
+png("Lee_PUHD_Astrocyte_dim15_res0.25_RenamedCluster.png",    
+  width = 5*400,        # 5 x 300 pixels
+  height = 4*400,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  p1
+dev.off() 
+
+#renamed cluster Ast-0, Ast-2, Ast-4
+new.cluster.ids <- c( "Ast-0", "Ast-2",  "Ast-4")
+names(new.cluster.ids) <- levels(Lee_Pu_Ast_FinalObj)
+Lee_Pu_Ast_FinalObj <- RenameIdents(Lee_Pu_Ast_FinalObj, new.cluster.ids)
+
+# set the order for CTRL, HD
+Lee_Pu_Ast_FinalObj@meta.data$Genotype <- factor(Lee_Pu_Ast_FinalObj@meta.data$Genotype,levels = c("CTRL", "HD"))
+
+# set the order for "Ast-0", "Ast-2",  "Ast-4"
+Lee_Pu_Ast_FinalObj@active.ident <- factor(Lee_Pu_Ast_FinalObj@active.ident,levels = c("Ast-0", "Ast-2", "Ast-4"))
+
+DimPlot(Lee_Pu_Ast_FinalObj, reduction = "umap", pt.size = 1.5, cols =c("coral3", "goldenrod2", "mediumturquoise"), label = T) 
+
+#know all the name of the sample 
+table(Lee_Pu_Ast_FinalObj@meta.data$orig.ident) 
+
+#open a new column and assign it the element in orig. ident
+Lee_Pu_Ast_FinalObj$SampleNo <- Lee_Pu_Ast_FinalObj@meta.data$orig.ident
+
+#Replace All Matching Rows in orig.ident in metadata with a Single Value
+Lee_Pu_Ast_FinalObj@meta.data$SampleNo <- ifelse(Lee_Pu_Ast_FinalObj@meta.data$SampleNo == "PD_4_ACC_PD666", "PD_4", Lee_Pu_Ast_FinalObj@meta.data$SampleNo) # replace all the sampleNo with "Control_4294"  to  "CTRL_1"
+
+#.svg format
+svg("Lee_Pu_UMAP.svg", width = 5,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Lee_Pu_Ast_FinalObj, reduction = "umap", pt.size = 1.7, cols =c("coral3", "goldenrod2", "mediumturquoise"), label = F) + theme(axis.text.y=element_text(size=10), axis.text.x=element_text(size=10)) + theme(axis.title.x = element_text(size=10), axis.title.y = element_text(size=10)) & NoLegend()
+dev.off()
+
+svg("Lee_Pu_UMAP2.svg",  width = 5,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Lee_Pu_HD_Astrocyte_dim15_res0.25_FinalObj, reduction = "umap", pt.size = 1.0, cols =c("coral3", "goldenrod2", "mediumturquoise"), label = F) + theme(axis.text.y=element_text(size=10), axis.text.x=element_text(size=10)) + theme(axis.title.x = element_text(size=10), axis.title.y = element_text(size=10) +  theme(legend.title = element_text(face = "bold", size = 8)) + theme(legend.text = element_text(size = 6)) + theme(legend.key.size = unit(0.2, 'cm'))) 
+dev.off()
+
+# cluster by sample
+svg("Lee_Pu_bySample.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Lee_Pu_Ast_FinalObj, reduction = "umap", pt.size = 1.2, label = F, group.by = "SampleNo") + theme(legend.text = element_text(size = 13)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# cluster by disease
+svg("Lee_Pu_byGenotype.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Lee_Pu_Ast_FinalObj, reduction = "umap", pt.size = 1.2, label = F, group.by = "Genotype", cols = c("green", "midnightblue")) + theme(legend.text = element_text(size = 15)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# Do the statistical differences in cell distribution between the genotypes using One-way ANOVA with 99% confidence level
+pct_cells <- prop.table(table(Idents(Lee_Pu_HD_Ast_FinalObj), Lee_Pu_HD_Ast_FinalObj$SampleNo), margin = 2) *100
+test_data <- as.data.frame(t(as.data.frame.matrix(pct_cells)))
+
+#test_data$Ast2 <- test_data$"1"
+#test_data$"1" <- NULL
+Genotype <- c(rep("CTRL", 5), rep("HD", 6))
+test_data <- cbind(test_data, Genotype)
+
+# code worked, to display the percentage of cells in each cluster
+library(reshape)
+meltData <- melt(test_data, id=c("Genotype"))
+
+# reformat the column in the melta dataframe
+meltData$Genotype <- ifelse(meltData$variable == "Ast-4" & meltData$Genotype == "HD", paste0(meltData$Genotype, "4"),
+                      ifelse(meltData$variable == "Ast-4" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "4"),
+                      ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "HD", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "HD", paste0(meltData$Genotype, "0"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "0"),
+                      meltData$Genotype))))))
+
+#meltData$Genotype <- factor(meltData$Genotype,levels = c("CTRL", "HD"))
+meltData$variable <- factor(meltData$variable,levels = c("Ast-0", "Ast-2", "Ast-4"))
+
+#cell distribution and sample distribution
+svg("Lee_Pu_Ast_Sample_statistics_CellProportion_ScaterPlot.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+ggplot(meltData, aes(x= Genotype, y=value, group = Genotype, color = Genotype, fill = Genotype)) +
+    scale_color_manual(values=c( "green", "midnightblue")) +
+  geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
+  labs(x = "Genotype", y = "% distribution of astrocyte") + facet_wrap( variable ~ ., ncol=4, scales="free_y") +
+  theme(legend.position="none", axis.text=element_text(size=18.5), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) +
+  theme(strip.text.x = element_text(size=19, face = "bold"))
+  dev.off()
+
+#significant differences in the distribution of cells between the samples
+res.aov_PercentCell <- aov(value ~ variable, data = meltData)
+summary(res.aov_PercentCell)
+#            Df Sum Sq Mean Sq F value Pr(>F)    
+#Genotype     5  23801    4760   118.9 <2e-16 ***
+#Residuals   27   1081      40                   
+#---
+#Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+TukeyHSD(res.aov_PercentCell, conf.level = 0.99)
+# all combination is significant except 
+#                    diff         lwr        upr     p adj
+# HD0 vs CTRL0    -4.5235404 -18.88205   9.834965 0.8420562
+# HD2 vs CTRL2     4.3277963 -10.03071  18.686302 0.8647728
+# HD4 vs CTRL4     0.1957441 -14.16276  14.554250 0.9999999
+
+# Cell distribution in each disease condition
+svg("Lee_Pu_Ast_Cell_Distribution_In_Each_Disease_Group.svg", width = 7,  height = 6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(meltData, aes(fill=variable, y=value, x= Genotype)) + 
+    geom_bar(position="fill", stat="identity") +   theme(axis.text=element_text(size=20), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) + ylab("Proportion of astrocyte subpopulation") + theme(legend.title= element_blank(), legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.4, 'cm')) +
+    scale_fill_manual(values = c("coral3", "goldenrod2", "mediumturquoise"))  + labs(fill='Cluster')
+dev.off()
+
+
+#unique markers
+markerAst_vln <- c('GPC5', 'GJA1', 'VCAN') 
+
+png("Lee_PUHD_Astrocyte_dim15_res0.25_Vln.png",      
+    width = 4*400,        # 5 x 300 pixels
+    height = 6*650,
+    res = 300,            # 300 pixels per inch
+    pointsize = 3)        # smaller font size
+VlnPlot(Lee_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "goldenrod2", "mediumturquoise"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=20), axis.text.x=element_text(angle=45, hjust=1, size=27), axis.text.y=element_text( size=25)) 
+dev.off()
+
+#.svg format
+svg("Lee_PUHD_Astrocyte_dim15_res0.25_Vln.svg", width = 7,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lee_Pu_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "goldenrod2", "mediumturquoise"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=13), axis.text.x=element_text(angle=45, hjust=1, size=19), axis.text.y=element_text( size=13)) 
+dev.off()
+
+# Dot plot
+# markers for all cell types in reverse order
+marker_genes <- c( "GPC5", "NRXN1", "TRPM3", "APOE", "CST3", "FTL", "CKB", "CLU", "ITM2C", "CPE", "TUBB2B", "VIM", "GLUL", "PSAP", "GJA1", "AGT", "ENO1", "DPP10", "GFAP", "PLEKHA5", "VCAN", "KAZN")  
+
+png("Lee_PUHD_Astrocyte_dim15_res0.25_DotPlot.png",      
+    width = 9*250, height = 3*250, res = 300, pointsize = 5)   
+  DotPlot(Lee_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+  theme(legend.title = element_text(face = "bold", size = 8)) + theme(axis.title.x = element_blank()) + theme(legend.text = element_text(size = 6)) + theme(legend.key.size = unit(0.2, 'cm')) + RotatedAxis()
+dev.off()
+
+#.svg format
+svg("Lee_PUHD_Astrocyte_dim15_res0.25_DotPlot.svg", width = 7,  height =2,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DotPlot(Lee_Pu_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+ theme(axis.text.y=element_text(size=20), axis.text.x=element_blank(), legend.title = element_text(face = "bold", size = 9)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.position="none") + RotatedAxis()
+dev.off()
+
+
+#vlnplot for the number of genes, umi, mito genes detected in the nuclei and the number of nuclei showing the median value
+png("Lee_PUHD_Astrocyte_dim15_res0.25_metric_genes.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Lee_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Lee_PUHD_Astrocyte_dim15_res0.25_metric_genes.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lee_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Lee_PUHD_Astrocyte_dim15_res0.25_metric_umi.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Lee_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Lee_PUHD_Astrocyte_dim15_res0.25_metric_umi.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lee_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei")  + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Lee_PUHD_Astrocyte_dim15_res0.25_metric_mtper.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Lee_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Lee_PUHD_Astrocyte_dim15_res0.25_metric_mtper.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lee_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.6))) + theme(legend.position="none")
+dev.off()
+
+```
+
+#Zhou's data
+Zhou_Ast_FinalObj <- readRDS("C:/ibrahim/Human_2023_Zhou_OC_NHD_Colona/Human_2023_Zhou_OccipitalCortex_NHD_Astrocyte/Zhou_OC_NHD_Astrocyte_integrated_dim15_res0.25_RenamedCluster.rds")
+
+#plot
+p1 <- DimPlot(Zhou_Ast_FinalObj, reduction = "umap", pt.size = 1.5, cols =c("coral3", "deepskyblue3", "goldenrod2"), label = F) + theme(legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.6, 'cm'))
+png("Zhou_NHD_Astrocyte_dim15_res0.25_RenamedCluster.png",    
+    width = 5*400,        # 5 x 300 pixels
+    height = 4*400,
+    res = 300,            # 300 pixels per inch
+    pointsize = 8)        # smaller font size
+p1
+dev.off()
+
+#know all the name of the sample 
+table(Zhou_OC_Ast_FinalObj@meta.data$orig.ident) 
+
+#open a new column and assign it the element in orig. ident
+Zhou_OC_Ast_FinalObj$SampleNo <- Zhou_OC_Ast_FinalObj@meta.data$orig.ident
+
+#Replace All Matching Rows in orig.ident in metadata with a Single Value
+Zhou_OC_Ast_FinalObj@meta.data$SampleNo <- ifelse(Zhou_OC_Ast_FinalObj@meta.data$SampleNo == "Control1_merged", "CTRL_1M", Zhou_OC_Ast_FinalObj@meta.data$SampleNo) # replace all the sampleNo with "Control1_merged" to "CTRL_1M"
+
+#.svg format
+svg("Zhou_UMAP.svg", width = 5,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Zhou_OC_Ast_FinalObj, reduction = "umap", pt.size = 1.2, cols =c("coral3", "deepskyblue3", "goldenrod2"), label = F) + theme(axis.text.y=element_text(size=10), axis.text.x=element_text(size=10)) + theme(axis.title.x = element_text(size=10), axis.title.y = element_text(size=10)) & NoLegend()
+dev.off()
+
+# cluster by sample
+svg("Zhou_bySample.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Zhou_OC_Ast_FinalObj, reduction = "umap", pt.size = 0.8, label = F, group.by = "SampleNo") + theme(legend.text = element_text(size = 13)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# cluster by disease
+svg("Zhou_byGenotype.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Zhou_OC_Ast_FinalObj, reduction = "umap", pt.size = 0.8, label = F, group.by = "Genotype", cols = c("green", "sienna4")) + theme(legend.text = element_text(size = 15)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+
+# Do the statistical differences in cell distribution between the genotypes using One-way ANOVA with 99% confidence level
+pct_cells <- prop.table(table(Idents(Zhou_NHD_Ast_FinalObj), Zhou_NHD_Ast_FinalObj$SampleNo), margin = 2) *100
+test_data <- as.data.frame(t(as.data.frame.matrix(pct_cells)))
+
+#test_data$Ast2 <- test_data$"1"
+#test_data$"1" <- NULL
+Genotype <- c(rep("CTRL", 11), rep("NHD", 3))
+test_data <- cbind(test_data, Genotype)
+
+# code worked, to display the percentage of cells in each cluster
+library(reshape)
+meltData <- melt(test_data, id=c("Genotype"))
+
+# reformat the column in the melta dataframe
+meltData$Genotype <- ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "NHD", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-1" & meltData$Genotype == "NHD", paste0(meltData$Genotype, "1"),
+                      ifelse(meltData$variable == "Ast-1" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "1"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "NHD", paste0(meltData$Genotype, "0"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "0"),
+                      meltData$Genotype))))))
+
+#meltData$Genotype <- factor(meltData$Genotype,levels = c("CTRL", "NHD"))
+meltData$variable <- factor(meltData$variable,levels = c("Ast-0", "Ast-1", "Ast-2"))
+
+#cell distribution and sample distribution
+svg("Zhou_OC_Ast_Sample_statistics_CellProportion_ScaterPlot.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+ggplot(meltData, aes(x= Genotype, y=value, group = Genotype, color = Genotype, fill = Genotype)) +
+    scale_color_manual(values=c("green", "sienna4")) +
+  geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
+  labs(x = "Genotype", y = "% distribution of astrocyte") + facet_wrap( variable ~ ., ncol=4, scales="free_y") +
+  theme(legend.position="none", axis.text=element_text(size=18.5), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) +
+  theme(strip.text.x = element_text(size=19, face = "bold"))
+  dev.off()
+  
+#significant differences in the distribution of cells between the samples
+res.aov_PercentCell <- aov(value ~ variable, data = meltData)
+summary(res.aov_PercentCell)
+#            Df Sum Sq Mean Sq F value   Pr(>F)    
+#Genotype     5   1584   316.9    7.54 6.27e-05 ***
+#Residuals   36   1513    42.0                     
+#---
+#Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+TukeyHSD(res.aov_PercentCell, conf.level = 0.99)
+#                   diff         lwr        upr     p adj
+# CTRL1 vs CTRL0 -14.5789239 -24.6577850 -4.5000627 0.0000896
+# NHD1 vs CTRL0  -15.8128821 -31.2085968 -0.4171673 0.0076627
+# CTRL2 vs CTRL1   9.3807875  -0.6980737 19.4596487 0.0193832
+# NHD2 vs CTRL1   12.9494670  -2.4462477 28.3451818 0.0435575
+
+# Cell distribution in each disease condition
+svg("Zhou_OC_Ast_Cell_Distribution_In_Each_Disease_Group.svg", width = 7,  height = 6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(meltData, aes(fill=variable, y=value, x= Genotype)) + 
+    geom_bar(position="fill", stat="identity") +   theme(axis.text=element_text(size=20), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) + ylab("Proportion of astrocyte subpopulation") + theme(legend.title= element_blank(), legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.4, 'cm')) +
+    scale_fill_manual(values = c("coral3", "deepskyblue3", "goldenrod2"))  + labs(fill='Cluster')
+dev.off()
+
+
+#unique markers
+markerAst_vln <- c('GPC5', 'GJA1', 'VCAN') 
+
+png("Zhou_NHD_Astrocyte_dim15_res0.25_Vln.png",      
+    width = 4*700,        # 5 x 300 pixels
+    height = 4*350,
+    res = 300,            # 300 pixels per inch
+    pointsize = 3)        # smaller font size
+VlnPlot(Zhou_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "deepskyblue3", "goldenrod2"))& 
+  theme(plot.title = element_text(size = rel(3)), axis.title.x=element_blank(), axis.title.y=element_text(size=20), axis.text.x=element_text(angle=45, hjust=1, size=31), axis.text.y=element_text( size=25)) 
+dev.off()
+
+#.svg format
+svg("Zhou_NHD_Astrocyte_dim15_res0.25_Vln.svg", width = 7, height = 4, onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Zhou_OC_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "deepskyblue3", "goldenrod2"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=13), axis.text.x=element_text(angle=45, hjust=1, size=19), axis.text.y=element_text( size=13)) 
+dev.off()
+
+
+# Dot plot
+# markers for all cell types in reverse order
+marker_genes <- c( "GPC5", "NRXN1", "TRPM3", "APOE", "CST3", "FTL", "CKB", "CLU", "ITM2C", "CPE", "TUBB2B", "VIM", "GLUL", "PSAP", "GJA1", "AGT", "ENO1", "DPP10", "GFAP", "PLEKHA5", "VCAN", "KAZN")  
+
+png("Zhou_NHD_Astrocyte_dim15_res0.25_DotPlot.png",      
+    width = 9*250, height = 3*250, res = 300, pointsize = 5)   
+DotPlot(Zhou_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+  theme(legend.title = element_text(face = "bold", size = 8)) + theme(axis.title.x = element_blank()) + theme(legend.text = element_text(size = 6)) + theme(legend.key.size = unit(0.2, 'cm')) + RotatedAxis()
+dev.off()
+
+#.svg format
+svg("Zhou_NHD_Astrocyte_dim15_res0.25_DotPlot.svg", width = 7,  height =2,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DotPlot(Zhou_OC_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+ theme(axis.text.y=element_text(size=20), axis.text.x=element_blank(), legend.title = element_text(face = "bold", size = 9)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.position="none") + RotatedAxis()
+dev.off()
+
+#vlnplot for the number of genes, umi, mito genes detected in the nuclei and the number of nuclei showing the median value
+png("Zhou_OC_NHD_Astrocyte_dim15_res0.25_metric_genes.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Zhou_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Zhou_OC_NHD_Astrocyte_dim15_res0.25_metric_genes.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Zhou_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Zhou_OC_NHD_Astrocyte_dim15_res0.25_metric_umi.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Zhou_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Zhou_OC_NHD_Astrocyte_dim15_res0.25_metric_umi.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Zhou_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") +  theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Zhou_OC_NHD_Astrocyte_dim15_res0.25_metric_mtper.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Zhou_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Zhou_OC_NHD_Astrocyte_dim15_res0.25_metric_mtper.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Zhou_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "deepskyblue3", "goldenrod2")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.6))) + theme(legend.position="none")
+dev.off()
+
+
+```{r}
+
+#Lee data
+Lee_Cd_Ast_FinalObj <- readRDS("C:/ibrahim/Human_2020_Lee_Cd_HD_Astrocyte_data/Lee_Cd_HD_Astrocyte_dim15_res0.20_FinalObj_RenamedCluster.rds")
+
+#plot
+p1 <- DimPlot(Lee_Cd_Ast_FinalObj, reduction = "umap", pt.size = 1.5, cols =c("coral3", "goldenrod2", "gray47"), label = F) + theme(legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.6, 'cm'))
+png("Lee_cdHD_Astrocyte_dim15_res0.20_RenamedCluster.png",    
+  width = 5*400,        # 5 x 300 pixels
+  height = 4*400,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  p1
+dev.off()
+
+#renamed cluster Ast-0, Ast-2, Ast-5
+new.cluster.ids <- c( "Ast-0", "Ast-2", "Ast-5")
+names(new.cluster.ids) <- levels(Lee_Cd_Ast_FinalObj)
+Lee_Cd_Ast_FinalObj <- RenameIdents(Lee_Cd_Ast_FinalObj, new.cluster.ids)
+
+# set the order for CTRL, HD
+Lee_Cd_Ast_FinalObj@meta.data$Genotype <- factor(Lee_Cd_Ast_FinalObj@meta.data$Genotype,levels = c("CTRL", "HD"))
+
+# set the order for "Ast-0", "Ast-2",  "Ast-4"
+Lee_Cd_Ast_FinalObj@active.ident <- factor(Lee_Cd_Ast_FinalObj@active.ident,levels = c("Ast-0", "Ast-2", "Ast-5"))
+
+DimPlot(Lee_Cd_Ast_FinalObj, reduction = "umap", pt.size = 1.5, cols =c("coral3", "goldenrod2", "mediumorchid3"), label = T) 
+
+#know all the name of the sample 
+table(Lee_Cd_Ast_FinalObj@meta.data$orig.ident) 
+
+#open a new column and assign it the element in orig. ident
+Lee_Cd_Ast_FinalObj$SampleNo <- Lee_Cd_Ast_FinalObj@meta.data$orig.ident
+
+#Replace All Matching Rows in orig.ident in metadata with a Single Value
+Lee_Cd_Ast_FinalObj@meta.data$SampleNo <- ifelse(Lee_Cd_Ast_FinalObj@meta.data$SampleNo == "A47L", "CTRL_7", Lee_Cd_Ast_FinalObj@meta.data$SampleNo) # replace all the sampleNo with "A47L"  to  "CTRL_7"
+
+#change the Control in the Genotype to CTRL
+Lee_Cd_Ast_FinalObj@meta.data$Genotype <- ifelse(Lee_Cd_Ast_FinalObj@meta.data$Genotype == "Control", "CTRL", Lee_Cd_Ast_FinalObj@meta.data$Genotype)
+
+#.svg format
+svg("Lee_Cd_UMAP.svg",  width = 5,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Lee_Cd_Ast_FinalObj, reduction = "umap", pt.size = 1.0, cols =c("coral3", "goldenrod2", "mediumorchid3"), label = F) + theme(axis.text.y=element_text(size=10), axis.text.x=element_text(size=10)) + theme(axis.title.x = element_text(size=10), axis.title.y = element_text(size=10)) & NoLegend()
+dev.off()
+
+# cluster by sample
+svg("Lee_Cd_bySample.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Lee_Cd_Ast_FinalObj, reduction = "umap", pt.size = 1.0, label = F, group.by = "SampleNo") + theme(legend.text = element_text(size = 13)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# cluster by disease
+svg("Lee_Cd_byGenotype.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Lee_Cd_Ast_FinalObj, reduction = "umap", pt.size = 1.0, label = F, group.by = "Genotype", cols = c("green", "midnightblue")) + theme(legend.text = element_text(size = 15)) + theme(legend.key.size = unit(0.4, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=8))
+dev.off()
+
+# Do the statistical differences in cell distribution between the genotypes using One-way ANOVA with 99% confidence level
+pct_cells <- prop.table(table(Idents(Lee_Cd_HD_Ast_FinalObj), Lee_Cd_HD_Ast_FinalObj$SampleNo), margin = 2) *100
+test_data <- as.data.frame(t(as.data.frame.matrix(pct_cells)))
+
+#test_data$Ast2 <- test_data$"1"
+#test_data$"1" <- NULL
+Genotype <- c(rep("CTRL", 7), rep("HD", 3))
+test_data <- cbind(test_data, Genotype)
+
+# code worked, to display the percentage of cells in each cluster
+library(reshape)
+meltData <- melt(test_data, id=c("Genotype"))
+
+# reformat the column in the melta dataframe
+meltData$Genotype <- ifelse(meltData$variable == "Ast-5" & meltData$Genotype == "HD", paste0(meltData$Genotype, "5"),
+                      ifelse(meltData$variable == "Ast-5" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "5"),
+                      ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "HD", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-2" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "2"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "HD", paste0(meltData$Genotype, "0"),
+                      ifelse(meltData$variable == "Ast-0" & meltData$Genotype == "CTRL", paste0(meltData$Genotype, "0"),
+                      meltData$Genotype))))))
+
+#meltData$Genotype <- factor(meltData$Genotype,levels = c("CTRL", "HD"))
+meltData$variable <- factor(meltData$variable,levels = c("Ast-0", "Ast-2", "Ast-5"))
+
+
+#cell distribution and sample distribution
+svg("Lee_Cd_Ast_Sample_statistics_CellProportion_ScaterPlot.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+ggplot(meltData, aes(x= Genotype, y=value, group = Genotype, color = Genotype, fill = Genotype)) +
+    scale_color_manual(values=c( "green", "midnightblue")) +
+  geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
+  labs(x = "Genotype", y = "% distribution of astrocyte") + facet_wrap( variable ~ ., ncol=4, scales="free_y") +
+  theme(legend.position="none", axis.text=element_text(size=18.5), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) +
+  theme(strip.text.x = element_text(size=19, face = "bold"))
+  dev.off()
+
+#significant differences in the distribution of cells between the samples
+res.aov_PercentCell <- aov(value ~ Genotype, data = meltData)
+summary(res.aov_PercentCell)
+#            Df Sum Sq Mean Sq F value Pr(>F)    
+#Genotype     5  26999    5400   211.7 <2e-16 ***
+#Residuals   24    612      26                   
+#---
+#Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+TukeyHSD(res.aov_PercentCell, conf.level = 0.99)
+# all combination is significant except 
+#                      diff         lwr        upr     p adj
+# HD0 vs CTRL0    -5.9363318 -19.1781643   7.305501 0.5427392
+# CTRL5 vs CTRL2  -7.0473710 -17.3044503   3.209708 0.1331713
+# HD2 vs CTRL2     5.2534267  -7.9884057  18.495259 0.6630199
+# HD5 vs CTRL2    -6.3644659 -19.6062984   6.877367 0.4687795
+# HD5 vs CTRL5     0.6829051 -12.5589274  13.924738 0.9999543
+# HD5 vs HD2     -11.6178927 -27.2858401   4.050055 0.0887323
+
+# Cell distribution in each disease condition
+svg("Lee_Cd_Ast_Cell_Distribution_In_Each_Disease_Group.svg", width = 7,  height = 6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(meltData, aes(fill=variable, y=value, x= Genotype)) + 
+    geom_bar(position="fill", stat="identity") +   theme(axis.text=element_text(size=20), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) + ylab("Proportion of astrocyte subpopulation") + theme(legend.title= element_blank(), legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.4, 'cm')) +
+    scale_fill_manual(values = c("coral3", "goldenrod2", "mediumorchid3"))  + labs(fill='Cluster')
+dev.off()
+
+#unique markers
+markerAst_vln <- c('GPC5', 'GJA1', 'VCAN') 
+
+png("Lee_cdHD_Astrocyte_dim15_res0.20_Vln.png",      
+    width = 4*700,        # 5 x 300 pixels
+    height = 4*350,
+    res = 300,            # 300 pixels per inch
+    pointsize = 3)        # smaller font size
+VlnPlot(Lee_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "goldenrod2", "gray47"))& 
+   theme(plot.title = element_text(size = rel(3)), axis.title.x=element_blank(), axis.title.y=element_text(size=20), axis.text.x=element_text(angle=45, hjust=1, size=31), axis.text.y=element_text( size=25)) 
+dev.off()
+
+#.svg format
+svg("Lee_cdHD_Astrocyte_dim15_res0.20_Vln.svg", width = 7,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lee_Cd_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "goldenrod2", "mediumorchid3"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=13), axis.text.x=element_text(angle=45, hjust=1, size=19), axis.text.y=element_text( size=13)) 
+dev.off()
+
+
+# Dot plot
+# markers for all cell types in reverse order
+marker_genes <- c( "GPC5", "NRXN1", "TRPM3", "APOE", "CST3", "FTL", "CKB", "CLU", "ITM2C", "CPE", "TUBB2B", "VIM", "GLUL", "PSAP", "GJA1", "AGT", "ENO1", "DPP10", "GFAP", "PLEKHA5", "VCAN", "KAZN")  
+
+png("Lee_cdHD_Astrocyte_dim15_res0.20_DotPlot.png",      
+    width = 9*250, height = 3*190, res = 300, pointsize = 5)   
+DotPlot(Lee_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+  theme(legend.title = element_text(face = "bold", size = 8)) + theme(axis.title.x = element_blank()) + theme(legend.text = element_text(size = 6)) + theme(legend.key.size = unit(0.2, 'cm')) + RotatedAxis()
+dev.off()
+
+#.svg format
+svg("Lee_cdHD_Astrocyte_dim15_res0.20_DotPlot.svg", width = 7,  height =2,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DotPlot(Lee_Cd_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+ theme(axis.text.y=element_text(size=20), axis.text.x=element_blank(), legend.title = element_text(face = "bold", size = 9)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.position="none") + RotatedAxis()
+dev.off()
+
+
+#vlnplot for the number of genes, umi, mito genes detected in the nuclei and the number of nuclei showing the median value
+png("Lee_cdHD_Astrocyte_dim15_res0.20_metric_genes.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Lee_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Lee_cdHD_Astrocyte_dim15_res0.20_metric_genes.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lee_Ast_FinalObj, features = c("nFeature_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Lee_cdHD_Astrocyte_dim15_res0.20_metric_umi.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Lee_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Lee_cdHD_Astrocyte_dim15_res0.20_metric_umi.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lee_Ast_FinalObj, features = c("nCount_RNA"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "UMIs per Nuclei")  + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.7))) + theme(legend.position="none")
+dev.off()
+
+png("Lee_cdHD_Astrocyte_dim15_res0.20_metric_mtper.png", width = 9*150, height = 10*200, res = 300, pointsize = 5)
+VlnPlot(Lee_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16), text = element_text(face = "bold")) + theme(legend.position="none")
+dev.off()
+# .svg format
+svg("Lee_cdHD_Astrocyte_dim15_res0.20_metric_mtper.svg", width = 6,  height =6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Lee_Ast_FinalObj, features = c("percent.mt"), ncol = 1,  pt.size = 0, cols = c("coral3", "goldenrod2", "gray47")) + stat_summary(fun = median, geom='point', size = 10, colour = "black", shape = 95) + labs(title = "% Mitochondrial Genes per Nuclei") + theme(axis.title.x = element_blank()) + theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), text = element_text(face = "bold"), plot.title = element_text(size = rel(1.6))) + theme(legend.position="none")
+dev.off()
+
+
+```
+
+#Gabitto SEA data
+Gabitto_Ast_FinalObj <- readRDS("C:/ibrahim/Astrocyte_Psuedotime_analysis/Gabitto_MTG_Astrocyte_integration_dim15_res0.25_FinalObj_RenamedCluster.rds")
+ 
+#plot
+p1 <- DimPlot(Gabitto_MTG_Ast_FinalObj, reduction = "umap", pt.size = 0.5, cols =c("coral3", "deepskyblue3", "dodgerblue4", "goldenrod2", "gold4", "forestgreen"), label = F) + theme(legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.6, 'cm'))
+png("Gabitto_mtgAD_Astrocyte_dim15_res0.25_RenamedCluster.png",    
+  width = 5*400,        # 5 x 300 pixels
+  height = 4*400,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  p1
+dev.off()
+
+Gabitto_SEA_AD_Astrocyte_dim15_res0.25_FinalObj$Identity <- Ident(Gabitto_SEA_AD_Astrocyte_dim15_res0.25_FinalObj)
+
+#open another column in the metadata and rename the dementia to be AD and normal to be control
+Gabitto_SEA_AD_Astrocyte_dim15_res0.25_FinalObj@meta.data <- mutate(Gabitto_SEA_AD_Astrocyte_dim15_res0.25_FinalObj@meta.data,  Conditions =ifelse(Gabitto_SEA_AD_Astrocyte_dim15_res0.25_FinalObj@meta.data$disease == "dementia", "DEM", "CTRL"))
+
+Gabitto_Ast_FinalObj <- Gabitto_MTG_Ast_FinalObj
+
+#renamed cluster Ast-0, Ast-2, Ast-5
+new.cluster.ids <- c( "Ast-0", "Ast-1", "Ast-2",  "Ast-Int", "Ast-6", "Ast-7")
+names(new.cluster.ids) <- levels(Gabitto_MTG_Ast_FinalObj)
+Gabitto_MTG_Ast_FinalObj <- RenameIdents(Gabitto_MTG_Ast_FinalObj, new.cluster.ids)
+
+# set the order for "Ast-0", "Ast-1", "Ast-Int" "Ast-2", "Ast-6", "Ast-7"
+Gabitto_MTG_Ast_FinalObj@active.ident <- factor(Gabitto_MTG_Ast_FinalObj@active.ident,levels = c("Ast-0", "Ast-1", "Ast-Int", "Ast-2", "Ast-6", "Ast-7"))
+
+DimPlot(Gabitto_MTG_Ast_FinalObj, reduction = "umap", pt.size = 1.5, cols =c("coral3", "deepskyblue3", "dodgerblue4", "goldenrod2", "gold4", "forestgreen"), label = T)
+
+#Replace All Matching Rows in orig.ident in metadata with a Single Value
+Gabitto_MTG_Ast_FinalObj@meta.data$orig.ident <- ifelse(Gabitto_MTG_Ast_FinalObj@meta.data$orig.ident == "merged_H20.33.025_008", "H20.33.008_025", Gabitto_MTG_Ast_FinalObj@meta.data$orig.ident) # replace all the sampleNo with "A47L"  to  "CTRL_7"
+
+# set the order for CTRL, AD
+Gabitto_MTG_Ast_FinalObj@meta.data$Condition <- factor(Gabitto_MTG_Ast_FinalObj@meta.data$Condition,levels = c("CTRL", "AD"))
+
+#know all the name of the sample 
+table(Gabitto_MTG_Ast_FinalObj@meta.data$orig.ident) 
+
+#.svg format
+svg("Gabitto_mtgAD_UMAP.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 6, family = "Arial", antialias = "gray")
+DimPlot(Gabitto_MTG_Ast_FinalObj, reduction = "umap", pt.size = 0.5, cols =c("coral3", "deepskyblue3", "dodgerblue4", "goldenrod2", "gold4", "forestgreen"), label = F) + theme(axis.text.y=element_text(size=10), axis.text.x=element_text(size=10)) + theme(axis.title.x = element_text(size=10), axis.title.y = element_text(size=13)) & NoLegend()
+dev.off()
+
+png("Gabitto_mtgAD_UMAP.png",    
+  width = 9*350,        # 5 x 300 pixels
+  height = 8*400,
+  res = 400,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+DimPlot(Gabitto_MTG_Ast_FinalObj, reduction = "umap", pt.size = 1, cols =c("coral3", "deepskyblue3", "dodgerblue4", "goldenrod2", "gold4", "forestgreen"), label = F) + theme(axis.text.y=element_text(size=18), axis.text.x=element_text(size=18)) + theme(axis.title.x = element_text(size=18), axis.title.y = element_text(size=18)) & NoLegend()
+dev.off()
+
+# cluster by sample
+svg("Gabitto_MTG_bySample.svg", width = 7,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+
+png("Gabitto_MTG_bySample.png",    
+  width = 9*550,        # 5 x 300 pixels
+  height = 8*400,
+  res = 400,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+DimPlot(Gabitto_MTG_Ast_FinalObj, reduction = "umap", pt.size = 0.3, label = F, group.by = "orig.ident") + theme(legend.text = element_text(size = 5)) + theme(legend.key.size = unit(0.01, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=15), axis.text.x=element_text(size=15)) + theme(axis.title.x = element_text(size=15), axis.title.y = element_text(size=15))
+dev.off()
+
+# cluster by sample
+svg("Gabitto_MTG_bySample2.svg", width =6,  height = 3,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DimPlot(Gabitto_MTG_Ast_FinalObj, reduction = "umap", pt.size = 0.3, label = F, group.by = "orig.ident") + theme(legend.text = element_text(size = 9)) + theme(legend.key.size = unit(0.01, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=8), axis.text.x=element_text(size=8)) + theme(axis.title.x = element_text(size=8), axis.title.y = element_text(size=12))
+dev.off()
+
+# cluster by disease
+svg("Gabitto_MTG_byGenotype.svg", width = 5,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+
+png("Gabitto_MTG_byGenotype.png",    
+  width = 8*450,        # 5 x 300 pixels
+  height = 8*400,
+  res = 400,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+DimPlot(Gabitto_MTG_Ast_FinalObj, reduction = "umap", pt.size = 0.3, label = F, group.by = "Condition", cols = c("green", "red")) + theme(legend.text = element_text(size = 28)) + theme(legend.key.size = unit(0.7, 'cm')) + theme(plot.title = element_blank(), axis.text.y=element_text(size=15), axis.text.x=element_text(size=15)) + theme(axis.title.x = element_text(size=15), axis.title.y = element_text(size=15))
+dev.off()
+
+# Do the statistical differences in cell distribution between the genotypes using One-way ANOVA with 99% confidence level
+pct_cells <- prop.table(table(Idents(Gabitto_MTG_Ast_FinalObj), Gabitto_MTG_Ast_FinalObj$orig.ident), margin = 2) *100
+test_data <- as.data.frame(t(as.data.frame.matrix(pct_cells)))
+
+#test_data$Ast2 <- test_data$"1"
+#test_data$"1" <- NULL
+Genotype <- c(rep("CTRL", 42), rep("AD", 41))
+test_data <- cbind(test_data, Genotype)
+
+# code worked, to display the percentage of cells in each cluster
+library(reshape)
+
+meltData <- melt(test_data, id=c("Genotype"))
+meltData$Genotype <- factor(meltData$Genotype,levels = c("CTRL", "AD"))
+meltData$variable <- factor(meltData$variable,levels = c("Ast-0", "Ast-1", "Ast-Int", "Ast-2", "Ast-6", "Ast-7"))
+
+#cell distribution and sample distribution
+svg("Gabitto_MTG_Ast_Sample_statistics_CellProportion_ScaterPlot.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+ggplot(meltData, aes(x= Genotype, y=value, group = Genotype, color = Genotype, fill = Genotype)) +
+    scale_color_manual(values=c( "green", "red")) +
+  geom_point(position=position_jitter(w=0.1,h=0), size=5, alpha=0.8) + 
+  labs(x = "Genotype", y = "% distribution of astrocyte") + facet_wrap( variable ~ ., ncol=4, scales="free_y") +
+  theme(legend.position="none", axis.text=element_text(size=18.5), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) +
+  theme(strip.text.x = element_text(size=19, face = "bold"))
+  dev.off()
+
+#significant differences in the distribution of cells between the samples
+res.aov_PercentCell <- aov(value ~ Genotype, data = meltData)
+summary(res.aov_PercentCell)
+TukeyHSD(res.aov_PercentCell, conf.level = 0.99)
+
+# Cell distribution in each disease condition
+svg("Gabitto_MTG_Ast_Cell_Distribution_In_Each_Disease_Group.svg", width = 7,  height = 6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(meltData, aes(fill=variable, y=value, x= Genotype)) + 
+    geom_bar(position="fill", stat="identity") +   theme(axis.text=element_text(size=20), axis.title.x =element_blank(), axis.title.y = element_text(size=24)) + ylab("Proportion of astrocyte subpopulation") + theme(legend.title= element_blank(), legend.text = element_text(size = 20)) + theme(legend.key.size = unit(0.4, 'cm')) +
+    scale_fill_manual(values = c("coral3", "deepskyblue3", "dodgerblue4", "goldenrod2", "gold4", "forestgreen"))  + labs(fill='Cluster')
+dev.off()
+
+#unique markers
+markerAst_vln <- c('GPC5', 'GJA1', 'VCAN') 
+
+png("Gabitto_mtgAD_Astrocyte_dim15_res0.25_Vln.png",      
+    width = 4*700,        # 5 x 300 pixels
+    height = 4*350,
+    res = 300,            # 300 pixels per inch
+    pointsize = 3)        # smaller font size
+VlnPlot(Gabitto_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "deepskyblue3", "dodgerblue4", "goldenrod2", "gold4", "forestgreen"))& 
+   theme(plot.title = element_text(size = rel(2.5)), axis.title.x=element_blank(), axis.title.y=element_text(size=18), axis.text.x=element_text(angle=45, hjust=1, size=17), axis.text.y=element_text( size=20)) 
+dev.off()
+
+#.svg format
+svg("Gabitto_mtgAD_Astrocyte_dim15_res0.25_Vln.svg", width = 8,  height = 4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+VlnPlot(Gabitto_MTG_Ast_FinalObj, assay = "RNA", features = markerAst_vln, pt.size = 0, ncol =3, cols = c("coral3", "deepskyblue3", "dodgerblue4", "goldenrod2", "gold4", "forestgreen"))& 
+  theme(plot.title = element_text(size = rel(2)), axis.title.x=element_blank(), axis.title.y=element_text(size=13), axis.text.x=element_text(angle=45, hjust=1, size=19), axis.text.y=element_text( size=13)) 
+dev.off()
+
+# Dot plot
+# markers for all cell types in reverse order
+marker_genes <- c( "GPC5", "NRXN1", "TRPM3", "APOE", "CST3", "FTL", "CKB", "CLU", "ITM2C", "CPE", "TUBB2B", "VIM", "GLUL", "PSAP", "GJA1", "AGT", "ENO1", "DPP10", "GFAP", "PLEKHA5", "VCAN", "KAZN")  
+
+png("_Astrocyte_dim15_res0.25_DotPlot.png",      
+    width = 9*250, height = 3*250, res = 300, pointsize = 5)   
+DotPlot(Gabitto_Ast_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8)+  theme(legend.title = element_text(face = "bold", size = 8)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.text = element_text(size = 6)) + theme(legend.key.size = unit(0.2, 'cm')) + RotatedAxis()
+dev.off()
+
+#.svg format
+svg("Gabitto_mtgAD_Astrocyte_dim15_res0.25_DotPlot2222.svg", width = 9,  height =4,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DotPlot(Gabitto_SEA_AD_Astrocyte_dim15_res0.25_FinalObj, assay = "SCT", features = marker_genes, dot.scale = 8) & theme(axis.text.y=element_text(size=20), axis.text.x=element_text(size=15, angle = 55, hjust=1), legend.title = element_text(face = "bold", size = 15)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.position="bottom") + RotatedAxis()
+dev.off()
+
+#.svg format Mathys
+svg("Mathys_Astrocyte_dim15_res0.25_DotPlot.svg", width = 9,  height =2,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+DotPlot(Ast_obj_Final, assay = "SCT", features = marker_genes, dot.scale = 8)+ theme(axis.text.y=element_text(size=20), axis.text.x=element_text(size=15, angle = 55, hjust=1), legend.title = element_text(face = "bold", size = 9)) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + theme(legend.position="right") + RotatedAxis()
+dev.off()
+
+```{r}
+#Draw barplot for metric of each dataset
+```
+
+#get quality metrix
+median_genes <- sapply(obj_list, function(obj) median(obj$nFeature_RNA))
+median_umis <- sapply(obj_list, function(obj) median(obj$nCount_RNA))
+total_nuclei <- sapply(obj_list, ncol)
+Dataset <- names(obj_list)
+
+#Metric plot
+Metric <- data.frame(Dataset = Dataset, Median_Gene_per_Nuclei = median_genes, Median_UMI_per_Nuclei = median_umis, Num_of_Nuclei = total_nuclei, row.names = NULL)
+
+#Metric plot
+#Metrics <- data.frame(Dataset = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg"), Median_Gene_per_Nuclei = c(932, 1011, 1323, 2728, 2988, 2134, 2946, 3682), Median_UMI_per_Nuclei = c(1424, 1560, 2100, 5578, 6550, 4136, 6871, 9830), Num_of_Nuclei = c(2362, 15936, 14117, 4277, 5025, 3979, 6655, 56195))
+
+#plot .svg
+svg("Dataset_Gene_Metric.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(Metric, aes(fill = factor(Dataset, level = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg")), y = Median_Gene_per_Nuclei, x = factor(Dataset, level = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg")))) + geom_bar(position = position_dodge(), stat = "identity") + scale_fill_manual(values = c("magenta2", "cadetblue2", "orange2", "olivedrab2", "plum", "antiquewhite2", "plum4", "red4")) +
+geom_text(
+  aes(label = Median_Gene_per_Nuclei, group = factor(Dataset, level = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg"))), 
+  position = position_dodge(0.9),
+  vjust = -0.2, size = 6, hjust = 0.5) +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  guides(fill = guide_legend(title = "dataset")) +
+  labs(x = " ", y = "Median Genes per Nuclei") +
+  theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + 
+        theme(axis.text=element_text(size=23,face= "bold", colour = "black"), axis.text.x = element_blank(), axis.title.y=element_text(size=28,face="bold")) +
+        theme(legend.position="none")  
+        dev.off()
+
+#plot .svg
+svg("Dataset_UMI_Metric.svg", width = 7,  height = 5,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(Metric, aes(fill = factor(Dataset, level = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg")), y = Median_UMI_per_Nuclei, x = factor(Dataset, level = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg")))) + geom_bar(position = position_dodge(), stat = "identity") + scale_fill_manual(values = c("magenta2", "cadetblue2", "orange2", "olivedrab2", "plum", "antiquewhite2", "plum4", "red4")) +
+geom_text(
+  aes(label = Median_UMI_per_Nuclei, group = factor(Dataset, level = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg"))), 
+  position = position_dodge(0.9),
+  vjust = -0.2, size = 6, hjust = 0.5) +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  guides(fill = guide_legend(title = "dataset")) +
+  labs(x = " ", y = "Median UMI per Nuclei") +
+  theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + 
+        theme(axis.text=element_text(size=23,face= "bold", colour = "black"), axis.text.x = element_blank(), axis.title.y=element_text(size=28,face="bold")) +
+        theme(legend.position="none")  
+        dev.off()
+
+
+#plot .svg
+svg("Dataset_Number_of_Nuclei_Metric.svg", width = 7,  height = 6,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(Metric, aes(fill = factor(Dataset, level = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg")), y = Num_of_Nuclei, x = factor(Dataset, level = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg")))) + geom_bar(position = position_dodge(), stat = "identity") + scale_fill_manual(values = c("magenta2", "cadetblue2", "orange2", "olivedrab2", "plum", "antiquewhite2", "plum4", "red4")) +
+geom_text(
+  aes(label = Num_of_Nuclei, group = factor(Dataset, level = c("GA_ec", "FR_acc", "LS_pfc", "XJ_pu", "ZY_oc", "LH_pu", "LH_cd", "GM_mtg"))), 
+  position = position_dodge(0.9),
+  vjust = -0.2, size = 6, hjust = 0.5) +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  guides(fill = guide_legend(title = "dataset")) +
+  labs(x = " ", y = "Number of Nuclei") +
+  theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + 
+        theme(axis.text=element_text(size=23,face= "bold", colour = "black"), axis.text.x = element_text(size=25, angle = 45, vjust = 1, hjust=1), axis.title.y=element_text(size=28,face="bold")) +
+        theme(legend.position="none")  
+        dev.off()
+        
+# ###############################################################
+saveRDS(Lau_PFC_Ast_FinalObj, file = "Lau_Astrocyte_ClusterRenamed_dim15_res0.25_ObjFinal.rds")
+saveRDS(Grubman_EC_Ast_FinalObj, file = "Grubman_Astrocyte_ClusterRenamed_dim15_res0.25_ObjFinal.rds")
+
+saveRDS(Feleke_ACC_Ast_FinalObj, file = "Feleke_LBD_Astrocyte_MergedClusterRenamed_dim15_res0.25_CleanObj_Final.rds")
+saveRDS(Xu_Pu_Ast_FinalObj, file = "Putamen_Astrocyte_FinalObj_dim15_res0.25_ClusterRenamed.rds")
+
+saveRDS(Lee_Pu_Ast_FinalObj, file = "Lee_Pu_HD_Astrocyte_dim15_res0.25_FinalObj.rds")
+saveRDS(Lee_Cd_Ast_FinalObj, file = "Lee_Cd_HD_Astrocyte_dim15_res0.25_FinalObj.rds")
+
+saveRDS(Zhou_OC_Ast_FinalObj, file = "Zhou_OC_NHD_Astrocyte_integrated_dim15_res0.25_RenamedCluster.rds")
+saveRDS(Gabitto_MTG_Ast_FinalObj, file = "Gabitto_MTG_Astrocyte_integration_dim15_res0.25_FinalObj_RenamedCluster.rds")
+
