@@ -1360,33 +1360,35 @@ total_nuclei_df$dataset <- factor (total_nuclei_df$dataset, levels = unique(tota
 
 
 #Gene per nuclei
-svg("Dataset_Gene_Metric_ScaterPlot.svg", width = 6,  height = 8,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+png("Dataset_Gene_Metric_ScaterPlot.png", width = 7*350, height = 8*400, res = 300, pointsize = 5)
 ggplot(median_genes_df, aes(x= dataset, y=median_nFeature_RNA, group = dataset, color = dataset, fill = dataset)) +
-    scale_color_manual(values=c("blue4", "green", "blueviolet", "lightslateblue", "goldenrod", "pink", "cadetblue",  "red2")) +
+    scale_color_manual(values=c("black", "black", "black", "black", "black", "black", "black",  "black")) + geom_boxplot() +
   geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
-  labs(x = "Genotype", y = "Gene per Nuclei") +
-  theme(legend.position="none", axis.text=element_text(size=18.5), axis.title.x =element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.y = element_text(size=29), axis.text.y=element_text(size=23)) +
+  scale_fill_manual(values=c("ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite")) +
+  labs(x = "Genotype", y = "Median Gene per Nuclei") +
+  theme(legend.position="none", axis.text=element_text(size=23), axis.title.x =element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.y = element_text(size=32), axis.text.y=element_text(size=27)) +
   theme(strip.text.x = element_text(size=19, face = "bold"))
   dev.off()
 
 #Umi per nuclei
-svg("Dataset_UMI_Metric_ScaterPlot.svg", width = 6,  height = 8,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+png("Dataset_UMI_Metric_ScaterPlot.png", width = 7*350, height = 8*400, res = 300, pointsize = 5)
 ggplot(median_umis_df, aes(x= dataset, y=median_nCount_RNA, group = dataset, color = dataset, fill = dataset)) +
-    scale_color_manual(values=c("blue4", "green", "blueviolet", "lightslateblue", "goldenrod", "pink", "cadetblue",  "red2")) +
+    scale_color_manual(values=c("black", "black", "black", "black", "black", "black", "black",  "black")) + geom_boxplot() +
   geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
-  labs(x = "Genotype", y = "UMI per Nuclei") +
-  theme(legend.position="none", axis.text=element_text(size=18.5), axis.title.x =element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.y = element_text(size=29), axis.text.y=element_text(size=23)) +
+  scale_fill_manual(values=c("ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite")) +
+  labs(x = "Genotype", y = "Median UMI per Nuclei") +
+  theme(legend.position="none", axis.text=element_text(size=23), axis.title.x =element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.y = element_text(size=32), axis.text.y=element_text(size=27)) +
   theme(strip.text.x = element_text(size=19, face = "bold"))
   dev.off()
 
 #total nuclei per sample
-#Umi per nuclei
-svg("Dataset_total_nuclei_Metric_ScaterPlot.svg", width = 6,  height = 8,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")  
+png("Dataset_total_nuclei_Metric_ScaterPlot.png", width = 7*350, height = 8*400, res = 300, pointsize = 5)
 ggplot(total_nuclei_df, aes(x= dataset, y=total_nuclei, group = dataset, color = dataset, fill = dataset)) +
-    scale_color_manual(values=c("blue4", "green", "blueviolet", "lightslateblue", "goldenrod", "pink", "cadetblue",  "red2")) +
+    scale_color_manual(values=c("black", "black", "black", "black", "black", "black", "black",  "black")) + geom_boxplot() +
   geom_point(position=position_jitter(w=0.1,h=0), size=4, alpha=0.8) + 
+  scale_fill_manual(values=c("ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite", "ghostwhite")) +
   labs(x = "Genotype", y = "Number of Nuclei") +
-  theme(legend.position="none", axis.text=element_text(size=26), axis.title.x =element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.y = element_text(size=29), axis.text.y=element_text(size=23)) +
+  theme(legend.position="none", axis.text=element_text(size=30), axis.title.x =element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), axis.title.y = element_text(size=32), axis.text.y=element_text(size=27)) +
   theme(strip.text.x = element_text(size=19, face = "bold"))
   dev.off()
         

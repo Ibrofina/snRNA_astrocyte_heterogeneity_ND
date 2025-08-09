@@ -52,6 +52,22 @@ png("Astrocytes_ConservedMarker_shared_heatmap_ExpressedAtLeast3.png", width = 1
 Heatmap(as.matrix(DataToPlot_Ast), name = "Trend", column_title = "Shared Conserved Markers in subpopulation and regions", cluster_columns  = TRUE, column_names_rot = 70, column_names_gp = gpar(fontsize = 17), col = col_fun, show_row_names = FALSE, column_km_repeats = 100, column_km = 3, row_km =3, right_annotation = RowAnnotation, top_annotation = ColumnAnnotation, rect_gp = gpar(col = "white", lwd = 0), heatmap_legend_param = list(labels_gp = gpar(fontsize = 12), legend_height = unit(5, "cm"), height = unit(2, "cm"), title_gp = gpar(fontsize = 14)))
 dev.off()
 
+#correlation matrix with sig level (p-value) using pearson method
+corr_log2FC <- rcorr(as.matrix(All_ConsMarker_AvgExp), type="pearson")
+
+svg("Ast_ConsMarker_PearsonCorrelation_AvgExp.svg", width = 7,  height = 8,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+  corr_log2FC$r[is.na(corr_log2FC$r)] <- 0 
+  corrplot(corr_log2FC$r, method = "color", p.mat = corr_log2FC$P, order="hclust", sig.level = 0.05, tl.srt=45, addCoef.col = "black", insig = "blank", number.cex = 0.7, col= colorRampPalette(c("blue","white", "red"))(100), type = c("lower"), diag = FALSE, tl.col = "black", tl.cex = 1.5, cl.cex = 1.3) 
+dev.off()
+
+#correlation matrix with sig level (p-value) using pearson method
+corr_log2FC <- rcorr(as.matrix(All_AvgFC_ConsMarker), type="pearson")
+
+#.svg format
+svg("Ast_ConsMarker_PearsonCorrelation_log2FC.svg", width = 10,  height = 12,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+  corr_log2FC$r[is.na(corr_log2FC$r)] <- 0 
+  corrplot(corr_log2FC$r, method = "color", p.mat = corr_log2FC$P, order="hclust", sig.level = 0.05, tl.srt=45, addCoef.col = "black", insig = "blank", number.cex = 0.7, col= colorRampPalette(c("blue","white", "red"))(100), type = c("lower"), diag = FALSE, tl.col = "black", tl.cex = 1.25, cl.cex = 1.5) 
+dev.off()
 
 ```{r}
 
