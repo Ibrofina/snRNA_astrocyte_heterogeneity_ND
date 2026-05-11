@@ -1,0 +1,811 @@
+---
+title: "Hypergeometry_test_of_SEA_AD_with_Serrano-Pozo_marker_gene"
+author: "Ibrahim Saliu"
+date: "2025-10-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(Seurat)
+library(sctransform)
+library(dplyr) # for mutate
+library(Matrix)
+library(RColorBrewer) # colorRampPalette(), brewer.pal
+library(ggplot2) # qplot(), position_nudge(), geom_text()
+library(cowplot) # for plot_grid
+library(slingshot)
+library(clusterExperiment)
+library(gplots) # for heatmap2
+library(VennDiagram)
+library(multtest)
+library(metap)
+library("ggrepel") # for Volcano plot
+library(Hmisc) # for correlation and correlation plot
+library(corrplot)
+library(UpSetR)
+library('purrr')
+library(ComplexHeatmap)
+
+```
+
+setwd("C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test")
+
+Seranno_AstHO_genes <- read.table("C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Serrano-Pozo_homeostatic_Ast_marker_gene_astHO.txt", header = F)
+colnames(Seranno_AstHO_genes) <- c('Conserved_gene')
+
+#Read in Gabitto_SEA-AD object
+Gabitto_MTG_SEA_Ast_FinalObj <- readRDS("C:/Users/ibrof/Documents/ibrahim/Astrocyte_Psuedotime_analysis/Gabitto_MTG_Astrocyte_integration_dim15_res0.25_FinalObj_RenamedCluster.rds")
+
+#AD
+ConsMarker_Gabitto_mtg_AD_Ast0 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Gabitto_MTG_Astrocyte_dim15_res0.25_ConservedMarkerGenes_cluster_0.csv")
+
+ConsMarker_Gabitto_mtg_AD_Ast1 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Gabitto_MTG_Astrocyte_dim15_res0.25_ConservedMarkerGenes_cluster_1.csv")
+
+ConsMarker_Gabitto_mtg_AD_AstInt <- read.csv("C:/Users/ibrof/Documents/ibrahim/Gabitto_MTG_Astrocyte_dim15_res0.25_ConservedMarkerGenes_cluster_2.csv")
+
+ConsMarker_Gabitto_mtg_AD_Ast2 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Gabitto_MTG_Astrocyte_dim15_res0.25_ConservedMarkerGenes_cluster_3.csv")
+
+ConsMarker_Gabitto_mtg_AD_Ast6 <- read.csv("C:/Users/ibrof/Documents/ibrahim//Gabitto_MTG_Astrocyte_dim15_res0.25_ConservedMarkerGenes_cluster_4.csv")
+
+ConsMarker_Gabitto_mtg_AD_Ast7 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Gabitto_MTG_Astrocyte_dim15_res0.25_ConservedMarkerGenes_cluster_5.csv")
+
+#list
+List_to_test <- list(Gabitto_mtgAD_Ast0 = ConsMarker_Gabitto_mtg_AD_Ast0$X, Gabitto_mtgAD_Ast1 = ConsMarker_Gabitto_mtg_AD_Ast1$X, Gabitto_mtgAD_Ast2 = ConsMarker_Gabitto_mtg_AD_Ast2$X, Gabitto_mtgAD_Ast6 = ConsMarker_Gabitto_mtg_AD_Ast6$X, Gabitto_mtgAD_Ast7 = ConsMarker_Gabitto_mtg_AD_Ast7$X, Gabitto_mtgAD_AstInt = ConsMarker_Gabitto_mtg_AD_AstInt$X)
+
+#For Homeostatic Ast subpopulation in Seranno data (AstHO) with SEA-AD dataset subpopulation
+N <- length(x = which(x = rowSums(x = Gabitto_MTG_SEA_Ast_FinalObj) != 0)) 
+M <- length(Seranno_AstHO_genes$Conserved_gene)
+
+hyperG_results_AstHO <- data.frame(matrix(ncol = 2, nrow = 0))
+
+for (i in 1:(length(List_to_test))) {
+  n_Marker = length(List_to_test[[i]])
+  n_overlap = length(intersect(Seranno_AstHO_genes$Conserved_gene, List_to_test[[i]]))
+  hyper_test_result <- phyper((n_overlap-1), M, (N - M), n_Marker, lower.tail = FALSE)
+  hyper_test_padj = p.adjust(hyper_test_result, method = "fdr", n = length(List_to_test))
+  Overlap_gene_name <- paste(c(intersect(Seranno_AstHO_genes$Conserved_gene, List_to_test[[i]])), collapse = ",")
+  temp_df <- c(i, n_Marker, n_overlap, hyper_test_result, hyper_test_padj, Overlap_gene_name)
+  hyperG_results_AstHO <- rbind(hyperG_results_AstHO, temp_df)
+}
+
+colnames(hyperG_results_AstHO) <- c("comparison", "n_MarkerGenes", "n_overlap", "hyper_test_result", "hyper_test_padj", "overlapGenes" )
+
+rownames(hyperG_results_AstHO) <- c("Gabitto_mtgAD_Ast0", "Gabitto_mtgAD_Ast1", "Gabitto_mtgAD_Ast2", "Gabitto_mtgAD_Ast6", "Gabitto_mtgAD_Ast7", "Gabitto_mtgAD_AstInt")
+
+write.csv(hyperG_results_AstHO, file = "Seranno_AstHO_hyperG_Gabitto_SEA_Ast_hyperG_results.csv")
+
+#use a loop function to create the list
+# Initialize empty list
+AstHO_overlap_Gabitto_mtgAD <- list()
+
+# Iterate over rows
+for (i in 1:6) {
+  # Extract value from hyperG_results_AstHO (column 6)
+  overlap <- hyperG_results_AstHO[i, 6]
+  
+  # Split the string into a vector
+  overlap <- strsplit(overlap, ",")[[1]]
+  
+  # Assign to list with a clear name
+  AstHO_overlap_Gabitto_mtgAD[[paste0("Gabitto_mtgAD_Ast", i-1)]] <- overlap
+}
+
+names(AstHO_overlap_Gabitto_mtgAD) <- c("Gabitto_mtgAD_Ast0", "Gabitto_mtgAD_Ast1", "Gabitto_mtgAD_Ast2", "Gabitto_mtgAD_Ast6", "Gabitto_mtgAD_Ast7", "Gabitto_mtgAD_AstInt")
+
+#creat a dataframe from the list of unequal(differing) length
+AstHO_Gabitto_mtgAD <- as.data.frame(t(do.call(rbind, lapply(AstHO_overlap_Gabitto_mtgAD, function(x) {
+  if (length(x) < max(lengths(AstHO_overlap_Gabitto_mtgAD)))
+    c(x, rep(NA, max(lengths(AstHO_overlap_Gabitto_mtgAD)) - length(x)))
+  else
+    x
+}))))
+
+write.csv(AstHO_Gabitto_mtgAD, file = "Seranno_AstHO_hyperG_Gabitto_SEA_Ast_hyperG_overlap_genes.csv")
+
+```{}
+#Function to run other Seranno subpopulations
+run_hypergeom_test <- function(reference_genes, List_to_test, N, ref_name, output_prefix) {
+  
+  M <- length(reference_genes)
+  hyperG_results <- data.frame()
+  
+  # Run hypergeometric test for each list
+  for (i in seq_along(List_to_test)) {
+    n_Marker <- length(List_to_test[[i]])
+    n_overlap <- length(intersect(reference_genes, List_to_test[[i]]))
+    hyper_test_result <- phyper((n_overlap - 1), M, (N - M), n_Marker, lower.tail = FALSE)
+    hyper_test_padj <- p.adjust(hyper_test_result, method = "fdr", n = length(List_to_test))
+    Overlap_gene_name <- paste(intersect(reference_genes, List_to_test[[i]]), collapse = ",")
+    
+    temp_df <- data.frame(
+      comparison = names(List_to_test)[i],
+      n_MarkerGenes = n_Marker,
+      n_overlap = n_overlap,
+      hyper_test_result = hyper_test_result,
+      hyper_test_padj = hyper_test_padj,
+      overlapGenes = Overlap_gene_name
+    )
+    hyperG_results <- rbind(hyperG_results, temp_df)
+  }
+  
+  # Save results
+  write.csv(hyperG_results, file = paste0(output_prefix, "_hyperG_results.csv"), row.names = FALSE)
+  
+  # Extract overlap list
+  overlap_list <- lapply(hyperG_results$overlapGenes, function(x) strsplit(x, ",")[[1]])
+  names(overlap_list) <- names(List_to_test)
+  
+  # Create a dataframe from unequal-length lists
+  overlap_df <- as.data.frame(t(do.call(rbind, lapply(overlap_list, function(x) {
+    len_diff <- max(lengths(overlap_list)) - length(x)
+    if (len_diff > 0) c(x, rep(NA, len_diff)) else x
+  }))))
+  
+  write.csv(overlap_df, file = paste0(output_prefix, "_hyperG_overlap_genes.csv"), row.names = FALSE)
+  
+  return(list(results = hyperG_results, overlap = overlap_list))
+}
+
+```
+
+#run each Seranno reactive subpopulation 
+# Seranno Ast R0
+Seranno_AstR0_genes <- read.table("C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Serrano-Pozo_Reactive_Ast_marker_gene_astR0.txt", header = F)
+colnames(Seranno_AstR0_genes) <- c('Conserved_gene')
+
+run_hypergeom_test(
+  reference_genes = Seranno_AstR0_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR0",
+  output_prefix = "Seranno_AstR0_hyperG_Gabitto_SEA_Ast"
+)
+
+# Seranno Ast R1
+Seranno_AstR1_genes <- read.table("C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Serrano-Pozo_Reactive_Ast1_marker_gene_astR1.txt", header = F)
+colnames(Seranno_AstR1_genes) <- c('Conserved_gene')
+
+run_hypergeom_test(
+  reference_genes = Seranno_AstR1_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR1",
+  output_prefix = "Seranno_AstR1_hyperG_Gabitto_SEA_Ast"
+)
+
+# Seranno Ast R2
+Seranno_AstR2_genes <- read.table("C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Serrano-Pozo_Reactive_Ast2_marker_gene_astR2.txt", header = F)
+colnames(Seranno_AstR2_genes) <- c('Conserved_gene')
+
+run_hypergeom_test(
+  reference_genes = Seranno_AstR2_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR2",
+  output_prefix = "Seranno_AstR2_hyperG_Gabitto_SEA_Ast"
+)
+
+```{r}
+
+```
+
+#read Zhou object
+Zhou_OC_NHD_Ast_FinalObj <- readRDS("~/ibrahim/Astrocyte_Psuedotime_analysis/Zhou_OC_NHD_Astrocyte_integrated_dim15_res0.25_RenamedCluster.rds")
+
+##Read in the conserved markers for each cluster in Zhou's data
+# Zhou's data astrocyte 3 subpopulation
+ConsMarker_Zhou_oc_NHD_Ast0 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Zhou_OC_NHD_Astrocyte_dim20_res0.25_ConservedMarkerGenes_clustermerged_cluster_0.csv")
+ConsMarker_Zhou_oc_NHD_Ast1 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Zhou_OC_NHD_Astrocyte_dim20_res0.25_ConservedMarkerGenes_clustermerged_cluster_1.csv")
+ConsMarker_Zhou_oc_NHD_Ast2 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Zhou_OC_NHD_Astrocyte_dim20_res0.25_ConservedMarkerGenes_clustermerged_cluster_2.csv")
+
+#list
+List_to_test <- list(Zhou_ocHND_Ast0 = ConsMarker_Zhou_oc_NHD_Ast0$X, Zhou_ocHND_Ast1 = ConsMarker_Zhou_oc_NHD_Ast1$X, Zhou_ocHND_Ast2 = ConsMarker_Zhou_oc_NHD_Ast2$X)
+
+#For Homeostatic Ast subpopulation in Seranno data (AstHO) with SEA-AD dataset subpopulation
+N <- length(x = which(x = rowSums(x = Zhou_OC_NHD_Ast_FinalObj) != 0)) 
+
+#astHO
+run_hypergeom_test(
+  reference_genes = Seranno_AstHO_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstHO",
+  output_prefix = "Seranno_AstHO_hyperG_Zhou_ocNHD_Ast"
+)
+
+#AstR0
+run_hypergeom_test(
+  reference_genes = Seranno_AstR0_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR0",
+  output_prefix = "Seranno_AstR0_hyperG_Zhou_ocNHD_Ast"
+)
+
+#AstR1
+run_hypergeom_test(
+  reference_genes = Seranno_AstR1_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR1",
+  output_prefix = "Seranno_AstR1_hyperG_Zhou_ocNHD_Ast"
+)
+
+#AstR2
+run_hypergeom_test(
+  reference_genes = Seranno_AstR2_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR2",
+  output_prefix = "Seranno_AstR2_hyperG_Zhou_ocNHD_Ast"
+)
+
+```{}
+#read in obj
+Lee_Pu_HD_Ast_FinalObj <- readRDS("~/ibrahim/Astrocyte_Psuedotime_analysis/Lee_Pu_HD_Astrocyte_dim15_res0.25_FinalObj.rds")
+
+##Read in the conserved markers for each cluster in Lee's data putamen region
+# Lee's putamen data astrocyte 3 subpopulation 
+ConsMarker_Lee_Pu_HD_Ast0 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Lee_Pu_HD_Astrocyte_dim15_res0.25_ConservedMarkerGenes_cluster_0.csv")
+ConsMarker_Lee_Pu_HD_Ast4 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Lee_Pu_HD_Astrocyte_dim15_res0.25_ConservedMarkerGenes_cluster_2.csv")
+ConsMarker_Lee_Pu_HD_Ast2 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Lee_Pu_HD_Astrocyte_dim15_res0.25_ConservedMarkerGenes_cluster_1.csv")
+
+#list
+List_to_test <- list(Lee_puHD_Ast0 = ConsMarker_Lee_Pu_HD_Ast0$X, Lee_puHD_Ast2 = ConsMarker_Lee_Pu_HD_Ast2$X, Lee_puHD_Ast4 = ConsMarker_Lee_Pu_HD_Ast4$X)
+
+#For Homeostatic Ast subpopulation in Seranno data (AstHO) with SEA-AD dataset subpopulation
+N <- length(x = which(x = rowSums(x = Lee_Pu_HD_Ast_FinalObj) != 0)) 
+
+#astHO
+run_hypergeom_test(
+  reference_genes = Seranno_AstHO_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstHO",
+  output_prefix = "Seranno_AstHO_hyperG_Lee_puHD_Ast"
+)
+
+#AstR0
+run_hypergeom_test(
+  reference_genes = Seranno_AstR0_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR0",
+  output_prefix = "Seranno_AstR0_hyperG_Lee_puHD_Ast"
+)
+
+#AstR1
+run_hypergeom_test(
+  reference_genes = Seranno_AstR1_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR1",
+  output_prefix = "Seranno_AstR1_hyperG_Lee_puHD_Ast"
+)
+
+#AstR2
+run_hypergeom_test(
+  reference_genes = Seranno_AstR2_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR2",
+  output_prefix = "Seranno_AstR2_hyperG_Lee_puHD_Ast"
+)
+
+```
+
+##Read in the object
+Lee_Cd_HD_Ast_FinalObj <- readRDS("~/ibrahim/Astrocyte_Psuedotime_analysis/Lee_Cd_HD_Astrocyte_dim15_res0.20_FinalObj.rds")
+
+##Read in the conserved markers for each cluster in Lee's data putamen region
+# Lee's caudate data astrocyte 3 subpopulation 
+ConsMarker_Lee_Cd_HD_Ast0 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Lee_Cd_HD_Astrocyte_dim15_res0.20_ConservedMarkerGenes_cluster_0.csv")
+ConsMarker_Lee_Cd_HD_Ast2 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Lee_Cd_HD_Astrocyte_dim15_res0.20_ConservedMarkerGenes_cluster_1.csv")
+ConsMarker_Lee_Cd_HD_Ast5 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Lee_Cd_HD_Astrocyte_dim15_res0.20_ConservedMarkerGenes_cluster_2.csv")
+
+#list
+List_to_test <- list(Lee_cdHD_Ast0 = ConsMarker_Lee_Cd_HD_Ast0$X, Lee_cdHD_Ast2 = ConsMarker_Lee_Cd_HD_Ast2$X, Lee_cdHD_Ast5 = ConsMarker_Lee_Cd_HD_Ast5$X)
+
+#For Homeostatic Ast subpopulation in Seranno data (AstHO) with SEA-AD dataset subpopulation
+N <- length(x = which(x = rowSums(x = Lee_Cd_HD_Ast_FinalObj) != 0)) 
+
+#astHO
+run_hypergeom_test(
+  reference_genes = Seranno_AstHO_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstHO",
+  output_prefix = "Seranno_AstHO_hyperG_Lee_cdHD_Ast"
+)
+
+#AstR0
+run_hypergeom_test(
+  reference_genes = Seranno_AstR0_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR0",
+  output_prefix = "Seranno_AstR0_hyperG_Lee_cdHD_Ast"
+)
+
+#AstR1
+run_hypergeom_test(
+  reference_genes = Seranno_AstR1_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR1",
+  output_prefix = "Seranno_AstR1_hyperG_Lee_cdHD_Ast"
+)
+
+#AstR2
+run_hypergeom_test(
+  reference_genes = Seranno_AstR2_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR2",
+  output_prefix = "Seranno_AstR2_hyperG_Lee_cdHD_Ast"
+)
+
+
+```{}
+
+##Read in the obj
+Xu_Pu_ADPD_Ast_FinalObj <- readRDS("~/ibrahim/Astrocyte_Psuedotime_analysis/Putamen_Astrocyte_FinalObj_dim15_res0.25_ClusterRenamed.rds")
+
+##Read in the conserved markers for each cluster in Xu's data
+#Ast-0
+ConsMarker_Xu_Pu_ADPD_Ast0 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Xu_Ast-0_Markers.csv")
+#Ast-1
+ConsMarker_Xu_Pu_ADPD_Ast1 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Xu_Ast-1_Markers.csv")
+#Ast-2
+ConsMarker_Xu_Pu_ADPD_Ast2 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Xu_Ast-2_Markers.csv")
+
+#list
+List_to_test <- list(Xu_puADPD_Ast0 = ConsMarker_Xu_Pu_ADPD_Ast0$X, Xu_puADPD_Ast1 = ConsMarker_Xu_Pu_ADPD_Ast1$Gene, Xu_puADPD_Ast2 = ConsMarker_Xu_Pu_ADPD_Ast2$Gene)
+
+#For Homeostatic Ast subpopulation in Seranno data (AstHO) with SEA-AD dataset subpopulation
+N <- length(x = which(x = rowSums(x = Xu_Pu_ADPD_Ast_FinalObj) != 0)) 
+
+#astHO
+run_hypergeom_test(
+  reference_genes = Seranno_AstHO_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstHO",
+  output_prefix = "Seranno_AstHO_hyperG_Xu_puADPD_Ast"
+)
+
+#AstR0
+run_hypergeom_test(
+  reference_genes = Seranno_AstR0_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR0",
+  output_prefix = "Seranno_AstR0_hyperG_Xu_puADPD_Ast"
+)
+
+#AstR1
+run_hypergeom_test(
+  reference_genes = Seranno_AstR1_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR1",
+  output_prefix = "Seranno_AstR1_hyperG_Xu_puADPD_Ast"
+)
+
+#AstR2
+run_hypergeom_test(
+  reference_genes = Seranno_AstR2_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR2",
+  output_prefix = "Seranno_AstR2_hyperG_Xu_puADPD_Ast"
+)
+
+```
+
+Lau_PFC_AD_Ast_FinalObj <- readRDS("~/ibrahim/Astrocyte_Psuedotime_analysis/2020_Lau_Astrocyte_ClusterRenamed_dim15_res0.25_ObjFinal.rds")
+
+##Read in the conserved markers for each cluster in Lau's data
+#Ast-0
+ConsMarker_Lau_PFC_AD_Ast0 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Human_2020_Lau_PFC_Ast_AD_dim15_res0.25_ConservedMarker_Ast_0.csv")
+#Ast-1
+ConsMarker_Lau_PFC_AD_Ast1 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Human_2020_Lau_PFC_Ast_AD_dim15_res0.25_ConservedMarker_Ast_1.csv")
+#Ast-2
+ConsMarker_Lau_PFC_AD_Ast2 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Human_2020_Lau_PFC_Ast_AD_dim15_res0.25_ConservedMarker_Ast_2.csv")
+#Ast-3
+ConsMarker_Lau_PFC_AD_Ast3 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Human_2020_Lau_PFC_Ast_AD_dim15_res0.25_ConservedMarker_Ast_3.csv")
+
+
+#list
+List_to_test <- list(Lau_pfcAD_Ast0 = ConsMarker_Lau_PFC_AD_Ast0$X, Lau_pfcAD_Ast1 = ConsMarker_Lau_PFC_AD_Ast1$X, Lau_pfcAD_Ast2 = ConsMarker_Lau_PFC_AD_Ast2$X, Lau_pfcAD_Ast3 = ConsMarker_Lau_PFC_AD_Ast3$X) 
+
+#For Homeostatic Ast subpopulation in Seranno data (AstHO) with SEA-AD dataset subpopulation
+N <- length(x = which(x = rowSums(x = Lau_PFC_AD_Ast_FinalObj) != 0)) 
+
+#AstHO
+run_hypergeom_test(
+  reference_genes = Seranno_AstHO_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstHO",
+  output_prefix = "Seranno_AstHO_hyperG_Lau_pfcAD_Ast"
+)
+
+#AstR0
+run_hypergeom_test(
+  reference_genes = Seranno_AstR0_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR0",
+  output_prefix = "Seranno_AstR0_hyperG_Lau_pfcAD_Ast"
+)
+
+#AstR1
+run_hypergeom_test(
+  reference_genes = Seranno_AstR1_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR1",
+  output_prefix = "Seranno_AstR1_hyperG_Lau_pfcAD_Ast"
+)
+
+#AstR2
+run_hypergeom_test(
+  reference_genes = Seranno_AstR2_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR2",
+  output_prefix = "Seranno_AstR2_hyperG_Lau_pfcAD_Ast"
+)
+
+```{r}
+
+```
+
+Feleke_ACC_LBD_Ast_FinalObj <- readRDS("~/ibrahim/Astrocyte_Psuedotime_analysis/Feleke_LBD_Astrcyte_RMDoublet2_dim15_res0.25_CleanObj_Final.rds")
+
+##Read in the conserved markers for each cluster in Feleke's data
+ConsMarker_Feleke_ACC_LBD_Ast0 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Astrocyte_ConservedMarker_comparison/Feleke_Astrocyte_merge_cluster_ConservedMarkerGenes_cluster_0.csv")
+ConsMarker_Feleke_ACC_LBD_Ast1 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Astrocyte_ConservedMarker_comparison/Feleke_Astrocyte_merge_cluster_ConservedMarkerGenes_cluster_2.csv")
+ConsMarker_Feleke_ACC_LBD_Ast2 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Astrocyte_ConservedMarker_comparison/Feleke_Astrocyte_merge_cluster_ConservedMarkerGenes_cluster_1.csv")
+
+#list
+List_to_test <- list(Feleke_accLBD_Ast0 = ConsMarker_Feleke_ACC_LBD_Ast0$X, Feleke_accLBD_Ast1 = ConsMarker_Feleke_ACC_LBD_Ast1$X, Feleke_accLBD_Ast2 = ConsMarker_Feleke_ACC_LBD_Ast2$X)
+
+#For Homeostatic Ast subpopulation in Seranno data (AstHO) with SEA-AD dataset subpopulation
+N <- length(x = which(x = rowSums(x = Feleke_ACC_LBD_Ast_FinalObj) != 0)) 
+
+#astHO
+run_hypergeom_test(
+  reference_genes = Seranno_AstHO_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstHO",
+  output_prefix = "Seranno_AstHO_hyperG_Feleke_accLBD_Ast"
+)
+
+#AstR0
+run_hypergeom_test(
+  reference_genes = Seranno_AstR0_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR0",
+  output_prefix = "Seranno_AstR0_hyperG_Feleke_accLBD_Ast"
+)
+
+#AstR1
+run_hypergeom_test(
+  reference_genes = Seranno_AstR1_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR1",
+  output_prefix = "Seranno_AstR1_hyperG_Feleke_accLBD_Ast"
+)
+
+#AstR2
+run_hypergeom_test(
+  reference_genes = Seranno_AstR2_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR2",
+  output_prefix = "Seranno_AstR2_hyperG_Feleke_accLBD_Ast"
+)
+
+
+```{r}
+
+```
+
+Grubman_EC_AD_Ast_Objinal <- readRDS("~/ibrahim/Astrocyte_Psuedotime_analysis/2019_Grubman_Astrocyte_ClusterRenamed_dim15_res0.25_ObjFinal.rds")
+
+##Read in the conserved markers for each cluster in Grubman's data
+#Ast-0
+ConsMarker_Grubman_EC_AD_Ast0 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Grubma_Ast-0_Markers.csv")
+#Ast-1
+ConsMarker_Grubman_EC_AD_Ast1 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Grubma_Ast-1_Markers.csv")
+#Ast-2
+ConsMarker_Grubman_EC_AD_Ast2 <- read.csv("C:/Users/ibrof/Documents/ibrahim/Grubma_Ast-2_Markers.csv")
+
+#list
+List_to_test <- list(Grubman_ecAD_Ast0 = ConsMarker_Grubman_EC_AD_Ast0$X, Grubman_ecAD_Ast1 = ConsMarker_Grubman_EC_AD_Ast1$X, Grubman_ecAD_Ast2 = ConsMarker_Grubman_EC_AD_Ast2$X) 
+
+#For Homeostatic Ast subpopulation in Seranno data (AstHO) with SEA-AD dataset subpopulation
+N <- length(x = which(x = rowSums(x = Grubman_EC_AD_Ast_Objinal) != 0)) 
+
+#astHO
+run_hypergeom_test(
+  reference_genes = Seranno_AstHO_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstHO",
+  output_prefix = "Seranno_AstHO_hyperG_Grubman_ecAD_Ast"
+)
+
+#AstR0
+run_hypergeom_test(
+  reference_genes = Seranno_AstR0_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR0",
+  output_prefix = "Seranno_AstR0_hyperG_Grubman_ecAD_Ast"
+)
+
+#AstR1
+run_hypergeom_test(
+  reference_genes = Seranno_AstR1_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR1",
+  output_prefix = "Seranno_AstR1_hyperG_Grubman_ecAD_Ast"
+)
+
+#AstR2
+run_hypergeom_test(
+  reference_genes = Seranno_AstR2_genes$Conserved_gene,
+  List_to_test = List_to_test,
+  N = N,
+  ref_name = "AstR2",
+  output_prefix = "Seranno_AstR2_hyperG_Grubman_ecAD_Ast"
+)
+
+
+```{}
+
+hyperG_files <- list(
+  AstHO = c(
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstHO_hyperG_Grubman_ecAD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstHO_hyperG_Feleke_accLBD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstHO_hyperG_Lau_pfcAD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstHO_hyperG_Xu_puADPD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstHO_hyperG_Zhou_ocNHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstHO_hyperG_Lee_puHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstHO_hyperG_Lee_cdHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstHO_hyperG_Gabitto_SEA_AsT.csv"
+  ),
+  AstR0 = c(
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR0_hyperG_Grubman_ecAD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR0_hyperG_Feleke_accLBD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR0_hyperG_Lau_pfcAD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR0_hyperG_Xu_puADPD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR0_hyperG_Zhou_ocNHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR0_hyperG_Lee_puHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR0_hyperG_Lee_cdHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR0_hyperG_Gabitto_SEA_Ast_hyperG_results.csv"
+  ),
+  AstR1 = c(
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR1_hyperG_Grubman_ecAD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR1_hyperG_Feleke_accLBD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR1_hyperG_Lau_pfcAD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR1_hyperG_Xu_puADPD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR1_hyperG_Zhou_ocNHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR1_hyperG_Lee_puHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR1_hyperG_Lee_cdHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR1_hyperG_Gabitto_SEA_Ast_hyperG_results.csv"
+  ),
+  AstR2 = c(
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR2_hyperG_Grubman_ecAD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR2_hyperG_Feleke_accLBD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR2_hyperG_Lau_pfcAD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR2_hyperG_Xu_puADPD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR2_hyperG_Zhou_ocNHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR2_hyperG_Lee_puHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR2_hyperG_Lee_cdHD_Ast_hyperG_results.csv",
+    "C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/Seranno_AstR2_hyperG_Gabitto_SEA_Ast_hyperG_results.csv"
+  )
+)
+
+hyperG_data <- lapply(hyperG_files, function(file_group) {
+  lapply(file_group, read.csv, header = TRUE)
+})
+
+dataset_names <- c("Grubman_ecAD", "Feleke_accAD", "Lau_pfcAD", "Xu_puAD",
+                   "Zhou_ocNHD", "Lee_puHD", "Lee_cdHD", "Gabitto_SEA")
+
+hyperG_data <- lapply(hyperG_data, function(group) {
+  names(group) <- dataset_names
+  group
+})
+
+```
+
+
+# Initialize empty list for heatmap matrices
+heatmap_list <- list()
+
+# Loop over clusters (AstHO, AstR0, etc.)
+for (n in names(hyperG_data)) {
+  
+  # Loop over datasets within each cluster
+  for (dataset in names(hyperG_data[[n]])) {
+    df <- hyperG_data[[n]][[dataset]]
+    
+    # Make sure hyper_test_padj exists
+    if (!"hyper_test_padj" %in% colnames(df)) next
+    
+    # Compute -log10(padj)
+    df$negLog10Padj <- -log10(df$hyper_test_padj)
+    
+    # Use comparison as row names
+    rownames(df) <- df$comparison
+    
+    # Keep only negLog10Padj
+    mat <- df[, "negLog10Padj", drop = FALSE]
+    
+    # Rename column as n_Dataset
+    colnames(mat) <- paste(n)
+  
+    # Add to heatmap list
+    heatmap_list[[paste(n, dataset, sep = "_")]] <- mat
+  }
+}
+
+
+# First, convert each matrix to a data frame with rownames as a column
+heatmap_df_list <- lapply(names(heatmap_list), function(nm) {
+  mat <- heatmap_list[[nm]]
+  df <- data.frame(comparison = rownames(mat), mat, check.names = FALSE)
+  colnames(df)[2] <- nm  # set the column name as cluster_dataset
+  df
+})
+
+# Merge all data frames by "comparison"
+full_heatmap_df <- Reduce(function(x, y) merge(x, y, by = "comparison", all = TRUE),
+                          heatmap_df_list)
+
+# Set comparison as rownames and remove the column
+rownames(full_heatmap_df) <- full_heatmap_df$comparison
+full_heatmap_df$comparison <- NULL
+
+# Replace NAs with 0 (optional)
+full_heatmap_df[is.na(full_heatmap_df)] <- 0
+
+#write.csv(full_heatmap_df, file = "full_heatmap_df.csv")
+#write.csv(full_pvalue_df, file = "full_pvalue_df.csv")
+
+full_heatmap <- read.csv("C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/heatmap_hyperG.csv")
+rownames(full_heatmap) <- full_heatmap$X
+full_heatmap$X <- NULL
+
+full_pvalue <- read.csv("C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/pvalueadj_hyperG.csv")
+rownames(full_pvalue) <- full_pvalue$X
+full_pvalue$X <- NULL
+
+# Convert to matrix
+full_heatmap_mat <- as.matrix(full_heatmap_df)
+
+#p-value adj
+pvalue_list <- list()
+
+for (n in names(hyperG_data)) {
+  for (dataset in names(hyperG_data[[n]])) {
+    df <- hyperG_data[[n]][[dataset]]
+    if (!"hyper_test_padj" %in% colnames(df)) next
+    
+    rownames(df) <- df$comparison
+    mat <- df[, "hyper_test_padj", drop = FALSE]
+    colnames(mat) <- paste(n)  # same naming as heatmap
+    pvalue_list[[paste(n, dataset, sep = "_")]] <- mat
+  }
+}
+
+pvalue_df_list <- lapply(names(pvalue_list), function(nm) {
+  mat <- pvalue_list[[nm]]
+  df <- data.frame(comparison = rownames(mat), mat, check.names = FALSE)
+  colnames(df)[2] <- nm
+  df
+})
+
+full_pvalue_df <- Reduce(function(x, y) merge(x, y, by = "comparison", all = TRUE),
+                         pvalue_df_list)
+
+rownames(full_pvalue_df) <- full_pvalue_df$comparison
+full_pvalue_df$comparison <- NULL
+full_pvalue_mat <- as.matrix(full_pvalue_df)
+
+# Ensure same order as heatmap matrix
+full_pvalue_mat <- full_pvalue_mat[rownames(full_heatmap_mat), colnames(full_heatmap_mat)]
+
+
+library(ComplexHeatmap)
+library(circlize)
+library(grid)
+
+# Extract the Seranno reference groups from column names
+cluster_groups <- sub("_.*", "", colnames(full_heatmap_mat)) 
+# Example: "AstHO_Gabitto" → "AstHO"
+
+# Same for p-value matrix to ensure alignment
+full_pvalue_mat <- full_pvalue_mat[rownames(full_heatmap_mat), colnames(full_heatmap_mat)]
+
+# Color scale
+col_fun_heatmap = colorRamp2(c(0, 3, 4), c("white", "blue", "red"))
+
+#Rearrange the csv life manually and read in
+full_heatmap <- read.csv("C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/heatmap_hyperG2.csv")
+rownames(full_heatmap) <- full_heatmap$X
+full_heatmap$X <- NULL
+
+
+full_pvalue <- read.csv("C:/Users/ibrof/Documents/ibrahim/SEA-AD_marker_gene_hypergeometry_test/pvalueadj_hyperG2.csv")
+rownames(full_pvalue) <- full_pvalue$X
+full_pvalue$X <- NULL
+
+full_heatmap_matx <- as.matrix(full_heatmap)
+
+full_pvalue_matx <- as.matrix(full_pvalue)
+
+#make plot
+# Output figure
+svg("HyperG_Comparison_Heatmap_by_Cluster.svg",
+    width = 16, height = 8, onefile = TRUE,
+    pointsize = 10, family = "Arial", antialias = "gray")
+
+png("HyperG_Comparison_Heatmap_by_Cluster.png", width = 10*500, height = 8*500, res = 300, pointsize = 8)
+HeatmapValue_All <- Heatmap(
+  full_heatmap_matx,
+  col = col_fun_heatmap,
+  name = "-log10(p-adj)",
+  cluster_columns = FALSE,
+  cluster_rows = FALSE,
+  show_row_names = TRUE,
+  show_column_names = TRUE,
+  row_names_gp = gpar(fontsize = 25),
+  column_names_gp = gpar(fontsize = 25),
+  heatmap_width = unit(32, "cm"),
+  heatmap_height = unit(23, "cm"),
+  column_title_gp = gpar(fontsize = 26, fontface = "bold"),
+  heatmap_legend_param = list(
+    legend_direction = "vertical", grid_height = unit(8, "cm"), grid_width = unit(5, "mm"),
+    legend_width = unit(10, "cm"),
+    labels_gp = gpar(fontsize = 18),
+    title_gp = gpar(fontsize = 25, fontface = "bold")
+  ),
+  
+  # ⭐ Significance star annotation remains unchanged
+  cell_fun = function(j, i, x, y, width, height, fill) {
+    p <- full_pvalue_matx[i, j]
+    if (is.na(p)) return()
+    
+    if (p > 0.05) {
+      grid.rect(x, y, width = width, height = height,
+                gp = gpar(fill = "white", col = "white"))
+    }
+    if (p < 0.001)      grid.text("***", x, y, gp = gpar(fontsize = 22))
+    else if (p < 0.01)  grid.text("**", x, y, gp = gpar(fontsize = 22))
+    else if (p < 0.05)  grid.text("*", x, y, gp = gpar(fontsize = 22))
+  }
+)
+
+draw(HeatmapValue_All, heatmap_legend_side = "right")
+dev.off()
+
+save.image("Conserved_marker_hypergeometry_analysis_with_Seranno_paper_Ast_subpopulation_markers.RData")
+
+
+```{r}
+
+```
+
+

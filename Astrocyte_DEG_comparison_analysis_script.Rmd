@@ -1,0 +1,235 @@
+---
+title: "Example_DEG_plot"
+author: "Ibrahim Saliu"
+date: "2025-10-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+dataset_obj <- readRDS("~/ibrahim/All_Ast_dataset_obj.rds")
+
+
+
+#                   DEGs AD vs CTRL
+
+List_DEGs_AD_vs_CTRL <- list() # list starting subscript is 1, can't use 0
+List_DEGs_ResultAllGenes_AD_vs_CTRL <- list()
+
+for (i in 0:(nlevels(dataset_obj[["Ast_obj"]]@active.ident)-1)) {
+  subset_cluster <- subset(dataset_obj[["Ast_obj"]], idents = i)
+  Idents(subset_cluster) <- "Genotype"
+  head(subset_cluster@active.ident) 
+  DefaultAssay(subset_cluster) <- "SCT"
+
+  # finding DEGs beteeen AD and controls
+   DEGs_ResultAllGenes_AD_vs_CTRL <- tryCatch({
+      FindMarkers(subset_cluster, ident.1 = "AD", ident.2 = "CTRL", assay = "SCT", slot = "data", test.use = "wilcox", print.bar = FALSE, min.pct = 0.2, logfc.threshold = 0, recorrect_umi = FALSE, features = c(rownames(subset_cluster@assays$SCT@counts)), base = 2)
+    }, error = function(e) {
+      DEGs_ResultAllGenes_AD_vs_CTRL <- data.frame(matrix(ncol = 3, nrow = 0))
+      print(paste("Entering error handler code."))
+      return(DEGs_ResultAllGenes_AD_vs_CTRL)
+    })
+
+  # apply DEG cutoffs
+  DEGs <- DEGs_ResultAllGenes_AD_vs_CTRL[ which(DEGs_ResultAllGenes_AD_vs_CTRL$p_val_adj < 0.05 & abs(DEGs_ResultAllGenes_AD_vs_CTRL$avg_log2FC ) > 0.25), ]
+  
+  List_DEGs_ResultAllGenes_AD_vs_CTRL[[i+1]] <- DEGs_ResultAllGenes_AD_vs_CTRL
+  List_DEGs_AD_vs_CTRL[[i+1]] <- DEGs
+  
+  outputfile <- paste("Ast_dim15_res0.25_DEGs_AD_vs_CTRL_padj0.05_log2fc0.25_Ast", i,".csv", sep="")
+write.csv(List_DEGs_AD_vs_CTRL[[i+1]], outputfile)
+}
+
+for (n in 1:length(List_DEGs_ResultAllGenes_AD_vs_CTRL)) {
+  file_number = n-1
+  outputfile <- paste("Ast_dim15_res0.25_DEGs_AD_vs_CTRL_All_genes_Ast", file_number,".csv", sep="")
+  write.csv(List_DEGs_ResultAllGenes_AD_vs_CTRL[n], outputfile)
+}
+
+# Make a volcano plot for Ast-0 AD vs. CTRL 
+temp_AllGenes <- List_DEGs_ResultAllGenes_AD_vs_CTRL[[1]]
+temp_DEGs <- List_DEGs_AD_vs_CTRL[[1]]
+
+temp_AllGenes = mutate(temp_AllGenes, sig=ifelse(!(rownames(temp_AllGenes) %in% rownames(temp_DEGs)), "NotSig", ifelse(temp_AllGenes$avg_log2FC >0, "up", "down") ))
+temp_AllGenes$GeneName <- rownames(temp_AllGenes)
+
+temp_AllGenes_AD_up_down <- temp_AllGenes[(temp_AllGenes$sig == "up") | (temp_AllGenes$sig == "down"), ]
+write.csv(temp_AllGenes_AD_up_down, "Ast_dim15_res0.25_DEGs_AD_vs_CTRL_Ast0_sig_DEG.csv")
+
+temp_AllGenes_AD_upregulated <- temp_AllGenes[temp_AllGenes$sig == "up", ] # 17 genes
+temp_AllGenes_AD_downregulated <- temp_AllGenes[temp_AllGenes$sig == "down", ] # 207 genes
+
+```{r}
+
+Grubman_Ast0 <- subset(dataset_obj[["GA_ecAD_Ast"]], idents = "Ast-0")
+Idents(Grubman_Ast0) <- "Genotype"
+
+Lau_Ast0 <- subset(dataset_obj[["Ast_obj"]], idents = "Ast-0")
+Idents(Lau_Ast0) <- "Genotype"
+Lau_Ast0 <- NormalizeData(Lau_Ast0, verbose = FALSE)
+
+Xu_Ast0 <- subset(dataset_obj[["XJ_puADPD_Ast"]], idents = "Ast-0")
+Idents(Xu_Ast0) <- "Genotype"
+Xu_Ast0 <- NormalizeData(Xu_Ast0, verbose = FALSE)
+
+Feleke_Ast0 <- subset(dataset_obj[["FR_accLBD_Ast"]], idents = "Ast-0")
+Idents(Feleke_Ast0) <- "Genotype"
+Feleke_Ast0 <- NormalizeData(Feleke_Ast0, verbose = FALSE)
+
+Lee_Pu_Ast0 <- subset(dataset_obj[["LH_puHD_Ast"]], idents = "Ast-0")
+Idents(Lee_Pu_Ast0) <- "Genotype"
+Lee_Pu_Ast0 <- NormalizeData(Lee_Pu_Ast0, verbose = FALSE)
+
+Lee_Cd_Ast0 <- subset(dataset_obj[["LH_cdHD_Ast"]], idents = "Ast-0")
+Idents(Lee_Cd_Ast0) <- "Genotype"
+Lee_Cd_Ast0 <- NormalizeData(Lee_Cd_Ast0, verbose = FALSE)
+
+Zhou_Ast0 <- subset(dataset_obj[["ZY_ocNHD_Ast"]], idents = "Ast-0")
+Idents(Zhou_Ast0) <- "Genotype"
+Zhou_Ast0 <- NormalizeData(Zhou_Ast0, verbose = FALSE)
+
+GM_Ast0 <- subset(dataset_obj[["GM_mtgAD_Ast"]], idents = "Ast-0")
+Idents(GM_Ast0) <- "Genotype"
+GM_Ast0 <- NormalizeData(GM_Ast0, verbose = FALSE)
+
+
+genes <- c("APOE", "F3", "NEAT1")
+
+# Create a list of datasets
+dataset_list <- list(
+  GA_ecAD_Ast0 = Grubman_Ast0,
+  FR_accLBD_Ast0 = Feleke_Ast0,
+  Ast_obj0 = Lau_Ast0,
+  XJ_puADPD_Ast0 = Xu_Ast0,
+  ZY_ocNHD_Ast0 = Zhou_Ast0,
+  LH_puHD_Ast0 = Lee_Pu_Ast0,
+  LH_cdH_Ast0 = Lee_Cd_Ast0,
+  GM_mtgAD_Ast0 = GM_Ast0
+)
+
+dataset_names <- names(dataset_list)
+
+for (dataset_name in dataset_names) {
+  current_dataset <- dataset_list[[dataset_name]]
+  # Automatically extract unique Genotypes from the meta.data
+  unique_genotypes <- unique(current_dataset@meta.data$Genotype)
+  
+  # Predefined color palette for Genotypes
+  color_palette <- c(
+    "CTRL" = "green",
+    "AD"= "red",
+    "DLBD" = "orange1",
+    "PD" = "blue",
+    "PDD" = "purple2",
+    "NHD" = "sienna4",
+    "HD" = "midnightblue",
+    "DEM" = "darkslategray")
+    
+  # Match colors only for the present Genotypes in the current dataset
+  filtered_colors <- color_palette[names(color_palette) %in% unique_genotypes]
+
+    filename <- paste(dataset_name, "TF_Fig_VlnPlot.svg", sep = "_")
+    #pdf(filename, width = 4.5, height = 2.5)
+    svg(filename, width = 8.3, height = 2.5, onefile = TRUE, pointsize = 6, family = "Arial", antialias = "gray")
+    plot <- VlnPlot(current_dataset, assay = "RNA", features = genes, 
+                    pt.size = 0, group.by = "Genotype", cols = filtered_colors, ncol = 5)& 
+  theme(axis.title.x=element_blank(), axis.text.x=element_text(angle=45, hjust=1, size=13))
+    print(plot)
+
+    dev.off()
+  } 
+
+
+```
+
+#create a list for all the DEG for all the dataset (remove Absinta data cos it is MS data)
+List_of_DEGs <- list(Lau_pfcAD_Ast0, Lau_pfcAD_Ast1, Lau_pfcAD_Ast2, Lau_pfcAD_Ast3, Grubman_ecAD_Ast0, Grubman_ecAD_Ast1, Grubman_ecAD_Ast2, Xu_puAD_Ast0, Xu_puAD_Ast1, Xu_puAD_Ast2, Xu_puPD_Ast0, Xu_puPD_Ast1, Xu_puPD_Ast2, Feleke_accDLBD_Ast0, Feleke_accDLBD_Ast1, Feleke_accDLBD_Ast2, Feleke_accPD_Ast0, Feleke_accPD_Ast1, Feleke_accPD_Ast2, Feleke_accPDD_Ast0, Feleke_accPDD_Ast1, Feleke_accPDD_Ast2, Lee_puHD_Ast0, Lee_puHD_Ast2, Lee_puHD_Ast4, Lee_cdHD_Ast0, Lee_cdHD_Ast2, Lee_cdHD_Ast5, Zhou_ocNHD_Ast0, Zhou_ocNHD_Ast1, Zhou_ocNHD_Ast2, Gabitto_SEA_mtgAD_Ast0, Gabitto_SEA_mtgAD_Ast1, Gabitto_SEA_mtgAD_AstInt, Gabitto_SEA_mtgAD_Ast2, Gabitto_SEA_mtgAD_Ast6, Gabitto_SEA_mtgAD_Ast7)
+
+List_of_Ast_DEGs <- Reduce(function(x, y) merge(x, y, all=TRUE), List_of_DEGs)
+
+#Remove duplicated DEGs
+#List_of_Ast_DEGs <- List_of_DEGs[!duplicated(List_of_Ast_DEGs[c('GeneName')]), ]
+rownames(List_of_Ast_DEGs) <- List_of_Ast_DEGs$GeneName
+
+List_of_Ast_DEGs$GeneName <- NULL
+dim(List_of_Ast_DEGs)
+# 3934  X  37
+
+#remove genes that do are not expressed in atleast 3 dataset
+List_of_Ast_DEGs <- List_of_Ast_DEGs[rowSums(!is.na(List_of_Ast_DEGs)) >= 4, ]
+
+# assign "0" to NA 
+List_of_Ast_DEGs[is.na(List_of_Ast_DEGs)] <- 0
+
+#swap the first two letters of the columnames
+colnames(List_of_Ast_DEGs) <- sub("^([A-Za-z])([A-Za-z])_", "\\2\\1_", colnames(List_of_Ast_DEGs))
+colnames(List_of_Ast_DEGs)
+
+colnames(List_of_Ast_DEGs) <- gsub("MG_mtg_AD", "MG_mtg_DEM", colnames(List_of_Ast_DEGs))
+
+range(List_of_Ast_DEGs) 
+#-2.316451  2.771361
+
+library(circlize)
+col_fun = colorRamp2(c(-0.5, 0, 0.5), c("blue", "gray98", "orangered2")) #"orangered2"
+#col_fun(seq(-1, 1))
+
+#c("deepskyblue3", "gray98", "goldenrod2"))
+
+genes.to.label <- c("APOE", "NEAT1", "CLU", "CRYAB" , "GFAP", "S100B", "VCAN", "VIM", "BAG3", "MT2A", "PLCG2", "SOX2", "NR1D2", "F3",  "SLC1A2", "SLC1A3", "APOC1", "RORA", "PBX1", "NRG3", "ID2")
+
+position.to.lable <- which(rownames(List_of_Ast_DEGs) %in% genes.to.label)
+genes.to.label <- rownames(List_of_Ast_DEGs)[c(which(rownames(List_of_Ast_DEGs) %in% genes.to.label))]
+
+# define color annotation 
+ColumnAnnotation <- HeatmapAnnotation(region = str_sub(sapply(strsplit(colnames(List_of_Ast_DEGs), "_"), function(x){x[2]})), 
+                                      subpopulation = str_sub(sapply(strsplit(colnames(List_of_Ast_DEGs), "_"), function(x) {x[4]})),
+                                      condition = str_sub(sapply(strsplit(colnames(List_of_Ast_DEGs), "_"), function(x) {x[3]})),
+                      col = list(region = c("pu" = "antiquewhite2", "acc" = "cadetblue2", "ec" = "chartreuse1", "pfc" = "chartreuse4", "oc" = "plum", "cd" = "blue4", "mtg" = "red4"),
+                                subpopulation = c("Ast0" = "coral3", "Ast1" = "deepskyblue3", "AstInt" = "dodgerblue4", "Ast2" = "goldenrod2", "Ast3" = "gray47", "Ast4" = "mediumturquoise", "Ast5" = "mediumorchid3", "Ast6" = "gold4", "Ast7" = "forestgreen"),
+                                condition = c("CTRL" = "green", "AD" = "red", "DLBD" = "orange1", "PD" = "blue", "PDD" = "purple2", "NHD" = "sienna4", "HD" = "midnightblue", "DEM" = "darkslategray")), annotation_legend_param = list(grid_height = unit(0.9, "cm"), grid_width = unit(7, "mm"), labels_gp = gpar(fontsize = 18), title_gp = gpar(fontsize = 16, fontface = "bold")))
+
+
+RowAnnotation = rowAnnotation(genes = anno_mark(at = position.to.lable, labels = genes.to.label ,  labels_gp = gpar(fontsize = 19)))
+
+#.png format
+png("Ast_DEG_comparison_heatmap_colkm4_rowkm3.png", width = 10*500, height = 8*500, res = 300, pointsize = 8)  
+Heatmap(as.matrix(List_of_Ast_DEGs), name = "avg_log2FC", column_title = "DEGs shared by all scRNA-seq studies", cluster_rows = TRUE, cluster_columns  = TRUE, column_names_rot = 70, column_names_gp = gpar(fontsize = 19), col = col_fun, show_row_names = FALSE, column_km_repeats = 100, column_km = 4, row_km_repeats = 100, row_km = 3, right_annotation = RowAnnotation, top_annotation = ColumnAnnotation, rect_gp = gpar(col = "white", lwd = 0), heatmap_legend_param = list(legend_height = unit(5, "cm"), legend_width = unit(3, "cm")))
+dev.off()
+
+```{r}
+
+```
+
+#create a list for all the DEG for all the dataset (remove Absinta data cos it is MS data)
+List_of_All_DEGs <- list(Lau_pfcAD_Ast0, Lau_pfcAD_Ast1, Lau_pfcAD_Ast2, Lau_pfcAD_Ast3, Grubman_ecAD_Ast0, Grubman_ecAD_Ast1, Grubman_ecAD_Ast2, Xu_puAD_Ast0, Xu_puAD_Ast1, Xu_puAD_Ast2, Xu_puPD_Ast0, Xu_puPD_Ast1, Xu_puPD_Ast2, Feleke_accDLBD_Ast0, Feleke_accDLBD_Ast1, Feleke_accDLBD_Ast2, Feleke_accPD_Ast0, Feleke_accPD_Ast1, Feleke_accPD_Ast2, Feleke_accPDD_Ast0, Feleke_accPDD_Ast1, Feleke_accPDD_Ast2, Lee_puHD_Ast0, Lee_puHD_Ast2, Lee_puHD_Ast4, Lee_cdHD_Ast0, Lee_cdHD_Ast2, Lee_cdHD_Ast5, Zhou_ocNHD_Ast0, Zhou_ocNHD_Ast1, Zhou_ocNHD_Ast2, Gabitto_SEA_mtgAD_Ast0, Gabitto_SEA_mtgAD_Ast1, Gabitto_SEA_mtgAD_AstInt, Gabitto_SEA_mtgAD_Ast2, Gabitto_SEA_mtgAD_Ast6, Gabitto_SEA_mtgAD_Ast7)
+
+names(List_of_All_DEGs) <- c("Lau_pfcAD_Ast0", "Lau_pfcAD_Ast1", "Lau_pfcAD_Ast2", "Lau_pfcAD_Ast3", "Grubman_ecAD_Ast0", "Grubman_ecAD_Ast1", "Grubman_ecAD_Ast2", "Xu_puAD_Ast0", "Xu_puAD_Ast1", "Xu_puAD_Ast2", "Xu_puPD_Ast0", "Xu_puPD_Ast1", "Xu_puPD_Ast2", "Feleke_accDLBD_Ast0", "Feleke_accDLBD_Ast1", "Feleke_accDLBD_Ast2", "Feleke_accPD_Ast0", "Feleke_accPD_Ast1", "Feleke_accPD_Ast2", "Feleke_accPDD_Ast0", "Feleke_accPDD_Ast1", "Feleke_accPDD_Ast2", "Lee_puHD_Ast0", "Lee_puHD_Ast2", "Lee_puHD_Ast4", "Lee_cdHD_Ast0", "Lee_cdHD_Ast2", "Lee_cdHD_Ast5", "Zhou_ocNHD_Ast0", "Zhou_ocNHD_Ast1", "Zhou_ocNHD_Ast2", "Gabitto_SEA_mtgAD_Ast0", "Gabitto_SEA_mtgAD_Ast1", "Gabitto_SEA_mtgAD_AstInt", "Gabitto_SEA_mtgAD_Ast2", "Gabitto_SEA_mtgAD_Ast6", "Gabitto_SEA_mtgAD_Ast7")
+
+All_AvgLogFC_DEGs <- Reduce(function(x, y) merge(x, y, all=TRUE), List_of_All_DEGs)
+
+All_AvgLogFC_DEGs <- All_AvgLogFC_DEGs[rowSums(!is.na(All_AvgLogFC_DEGs)) >= 18, ]
+
+rownames(All_AvgLogFC_DEGs) <- All_AvgLogFC_DEGs$GeneName
+All_AvgLogFC_DEGs$GeneName <- NULL
+
+#swap the first two letters of the columnames
+colnames(All_AvgLogFC_DEGs) <- sub("^([A-Za-z])([A-Za-z])_", "\\2\\1_", colnames(All_AvgLogFC_DEGs))
+colnames(All_AvgLogFC_DEGs) <- gsub("MG_mtg_AD", "MG_mtg_DEM", colnames(All_AvgLogFC_DEGs))
+colnames(All_AvgLogFC_DEGs)
+
+#correlation matrix with sig level (p-value) using pearson method
+corr_AvgLog2FC <- rcorr(as.matrix(All_AvgLogFC_DEGs), type="pearson")
+
+png("Ast_DEGs_PearsonCorrelation_AvgLog2FC_full.png", width = 10*700,  height = 10*700, res = 300,  pointsize = 10)
+  corrplot(corr_AvgLog2FC$r, method = "color", p.mat = corr_AvgLog2FC$P, order="hclust", hclust.method = "single", sig.level = 0.05, addCoef.col = "black", insig = "blank", col= colorRampPalette(c("blue","white", "red"))(100), type = c("lower"), diag = FALSE, tl.col = "black", tl.cex = 2.3, tl.srt=90, cl.cex = 2.5, number.cex = 1.3, cl.align.text= 'l') 
+dev.off()
+
+
+```{r}
+
+```
+

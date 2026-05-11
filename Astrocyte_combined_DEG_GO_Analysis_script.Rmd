@@ -1,0 +1,511 @@
+---
+title: "2025_10_20_combine_UpDown_DEG_GO_AND DEG_ranking"
+author: "Ibrahim Saliu"
+date: "2026-01-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(Seurat)
+library(sctransform)
+library(dplyr) # for mutate
+library(RColorBrewer) # colorRampPalette(), brewer.pal
+library(ggplot2) # qplot(), position_nudge(), geom_text()
+library(cowplot) # for plot_grid
+library(gplots) # for heatmap2
+library(metap)
+library("ggrepel") # for Volcano plot
+library(clusterProfiler)
+library(VennDiagram)
+#library(org.Mm.eg.db)
+library(org.Hs.eg.db)
+library(Hmisc) # for capitalize
+library(DOSE)
+library(KEGG.db)
+library(SCENIC)
+library(UpSetR)
+library(ComplexHeatmap)
+library(stringr)
+library(reshape)
+library(ComplexUpset)
+
+```
+
+#read workspace and continue analysis
+load("~/ibrahim/snRNA_seq_DEG_analysis/GO_DEG_analysis/Combine_all_Ast_subpopulation_for_GO_analysis_and_extract_terms/2025_08_30_All_data_Ast_subpopulation_combined_DEG_GO_analysis_workspace.RData")
+
+#All upregulated DEGs list
+DEG_Ast_upregulated <- list(YZ_ocNHD_Ast0 = ZY_ocNHD_Ast0_up, YZ_ocNHD_Ast1 = ZY_ocNHD_Ast1_up, YZ_ocNHD_Ast2 = ZY_ocNHD_Ast2_up, JX_puAD_Ast0 = XJ_puAD_Ast0_up, JX_puAD_Ast1 = XJ_puAD_Ast1_up, JX_puAD_Ast2 = XJ_puAD_Ast2_up, JX_puPD_Ast0 = XJ_puPD_Ast0_up, JX_puPD_Ast1 = XJ_puPD_Ast1_up, JX_puPD_Ast2 = XJ_puPD_Ast2_up, HL_cdHD_Ast0 = LH_cdHD_Ast0_up, HL_cdHD_Ast2 = LH_cdHD_Ast2_up, HL_cdHD_Ast5 = LH_cdHD_Ast5_up, HL_puHD_Ast0 = LH_puHD_Ast0_up, HL_puHD_Ast2 = LH_puHD_Ast2_up, HL_puHD_Ast4 = LH_puHD_Ast4_up, RF_accDLBD_Ast0 = FR_accDLBD_Ast0_up, RF_accDLBD_Ast1 = FR_accDLBD_Ast1_up, RF_accDLBD_Ast2 = FR_accDLBD_Ast2_up, RF_accPDD_Ast0 = FR_accPDD_Ast0_up, RF_accPDD_Ast1 = FR_accPDD_Ast1_up, RF_accPDD_Ast2 = FR_accPDD_Ast2_up, RF_accPD_Ast0 = FR_accPD_Ast0_up, RF_accPD_Ast1 = FR_accPD_Ast1_up, RF_accPD_Ast2 = FR_accPD_Ast2_up, SL_pfcAD_Ast0 = LS_pfcAD_Ast0_up, SL_pfcAD_Ast1 = LS_pfcAD_Ast1_up, SL_pfcAD_Ast2 = LS_pfcAD_Ast2_up, SL_pfcAD_Ast3 = LS_pfcAD_Ast3_up,  AG_ecAD_Ast0 = GA_ecAD_Ast0_up, AG_ecAD_Ast1 = GA_ecAD_Ast1_up, AG_ecAD_Ast2 = GA_ecAD_Ast2_up, MG_mtgDEM_Ast0 = GM_mtgAD_Ast0_up, MG_mtgDEM_Ast1 = GM_mtgAD_Ast1_up, MG_mtgDEM_Ast2 = GM_mtgAD_Ast2_up, MG_mtgDEM_Ast6 = GM_mtgAD_Ast6_up, MG_mtgDEM_Ast7 = GM_mtgAD_Ast7_up)
+
+#All downregulated DEG list
+DEG_Ast_downregulated <- list(YZ_ocNHD_Ast0 = ZY_ocNHD_Ast0_down, YZ_ocNHD_Ast1 = ZY_ocNHD_Ast1_down, YZ_ocNHD_Ast2 = ZY_ocNHD_Ast2_down, JX_puAD_Ast0 = XJ_puAD_Ast0_down, JX_puAD_Ast1 = XJ_puAD_Ast1_down, JX_puAD_Ast2 = XJ_puAD_Ast2_down, JX_puPD_Ast0 = XJ_puPD_Ast0_down, JX_puPD_Ast1 = XJ_puPD_Ast1_down, JX_puPD_Ast2 = XJ_puPD_Ast2_down, HL_cdHD_Ast0 = LH_cdHD_Ast0_down, HL_cdHD_Ast2 = LH_cdHD_Ast2_down, HL_cdHD_Ast5 = LH_cdHD_Ast5_down, HL_puHD_Ast0 = LH_puHD_Ast0_down, HL_puHD_Ast2 = LH_puHD_Ast2_down, HL_puHD_Ast4 = LH_puHD_Ast4_down, RF_accDLBD_Ast0 = FR_accDLBD_Ast0_down, RF_accDLBD_Ast1 = FR_accDLBD_Ast1_down, RF_accDLBD_Ast2 = FR_accDLBD_Ast2_down, RF_accPDD_Ast0 = FR_accPDD_Ast0_down, RF_accPDD_Ast1 = FR_accPDD_Ast1_down, RF_accPDD_Ast2 = FR_accPDD_Ast2_down, RF_accPD_Ast0 = FR_accPD_Ast0_down, RF_accPD_Ast1 = FR_accPD_Ast1_down, RF_accPD_Ast2 = FR_accPD_Ast2_down, SL_pfcAD_Ast0 = LS_pfcAD_Ast0_down, SL_pfcAD_Ast1 = LS_pfcAD_Ast1_down, SL_pfcAD_Ast2 = LS_pfcAD_Ast2_down, SL_pfcAD_Ast3 = LS_pfcAD_Ast3_down,  AG_ecAD_Ast0 = GA_ecAD_Ast0_down, AG_ecAD_Ast1 = GA_ecAD_Ast1_down, AG_ecAD_Ast2 = GA_ecAD_Ast2_down, MG_mtgDEM_Ast0 = GM_mtgAD_Ast0_down, MG_mtgDEM_Ast1 = GM_mtgAD_Ast1_down, MG_mtgDEM_Ast2 = GM_mtgAD_Ast2_down, MG_mtgDEM_Ast6 = GM_mtgAD_Ast6_down, MG_mtgDEM_Ast7 = GM_mtgAD_Ast7_down)
+
+
+# ############ GO for upregulated and downregulated separately ################
+# upregulated
+DEG_Ast_up_ENTREZID <- lapply(DEG_Ast_upregulated, function(x) bitr(x, fromType = "SYMBOL",  toType = c("ENTREZID"),  OrgDb = org.Hs.eg.db))
+DEG_Ast_up_ENTREZID <- lapply(DEG_Ast_up_ENTREZID, function(x) x$ENTREZID)
+
+# downregulated
+DEG_Ast_down_ENTREZID <- lapply(DEG_Ast_downregulated, function(x) bitr(x, fromType = "SYMBOL",  toType = c("ENTREZID"),  OrgDb = org.Hs.eg.db))
+DEG_Ast_down_ENTREZID <- lapply(DEG_Ast_down_ENTREZID, function(x) x$ENTREZID)
+
+
+# ############# BP GO categories for upregulated DEG #################
+# compare GO enrichment for all subpopulation combining upregulated
+DEG_Ast_upregulated_compGO_BP <- compareCluster(
+  geneCluster   = DEG_Ast_up_ENTREZID,
+  fun           = "enrichGO",
+  ont = "BP",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+DEG_Ast_upregulated_compGO_BP <- gsfilter(DEG_Ast_upregulated_compGO_BP, by = 'Count', min = 5)
+
+DEG_Ast_upregulated_compGO_BP@compareClusterResult$"Gene_Ratio" <- sapply(strsplit(as.character(DEG_Ast_upregulated_compGO_BP@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+df_DEG_Ast_upregulated_compGO_BP  <- as.data.frame(DEG_Ast_upregulated_compGO_BP)
+
+png("2026_01_30_DEG_Ast_subpopulation_upregulated_compGO_BP_Top2.png", width = 12*1000, height = 9*1000, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(DEG_Ast_upregulated_compGO_BP, showCategory = 2, title = "Top 2 upregulated BP", label_format = 80, font.size = 22, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(size = 35, angle = 55,vjust=1, hjust=1), axis.text.y = element_text(size = 38), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=25), legend.title=element_text(size=25), legend.key.size = unit(1.0, 'cm')) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+# ############# BP GO categories for DOWNregulated DEG #################
+# compare GO enrichment for all subpopulation combining upregulated
+DEG_Ast_downregulated_compGO_BP <- compareCluster(
+  geneCluster   = DEG_Ast_down_ENTREZID,
+  fun           = "enrichGO",
+  ont = "BP",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+DEG_Ast_downregulated_compGO_BP <- gsfilter(DEG_Ast_downregulated_compGO_BP, by = 'Count', min = 5)
+
+DEG_Ast_downregulated_compGO_BP@compareClusterResult$"Gene_Ratio" <- sapply(strsplit(as.character(DEG_Ast_downregulated_compGO_BP@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+df_DEG_Ast_downregulated_compGO_BP  <- as.data.frame(DEG_Ast_downregulated_compGO_BP)
+
+png("2026_01_30_DEG_Ast_subpopulation_downregulated_compGO_BP_Top2.png", width = 12*1000, height = 9*1000, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(DEG_Ast_downregulated_compGO_BP, showCategory = 2, title = "Top 2 upregulated BP", label_format = 80, font.size = 22, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(size = 35, angle = 55,vjust=1, hjust=1), axis.text.y = element_text(size = 38), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=25), legend.title=element_text(size=25), legend.key.size = unit(1.0, 'cm')) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+#combine DEGs of up and down regulated DEGs from each dataset into one
+#upregulated
+YZ_ocNHD_DEG_UpDown <- c(ZY_ocNHD_DEG_up, ZY_ocNHD_DEG_down)
+HL_puHD_DEG_UpDown <- c(LH_puHD_DEG_up, LH_puHD_DEG_down)
+JX_puAD_DEG_UpDown <- c(XJ_puAD_DEG_up, XJ_puAD_DEG_down)
+JX_puPD_DEG_UpDown <- c(XJ_puPD_DEG_up, XJ_puPD_DEG_down)
+MG_mtgDEM_DEG_UpDown <- c(GM_mtgAD_DEG_up, GM_mtgAD_DEG_down)
+RF_accDLBD_DEG_UpDown <- c(FR_accDLBD_DEG_up, FR_accDLBD_DEG_down) 
+RF_accPD_DEG_UpDown <- c(FR_accPD_DEG_up, FR_accPD_DEG_down)
+RF_accPDD_DEG_UpDown <- c(FR_accPDD_DEG_up, FR_accPDD_DEG_down)
+SL_pfcAD_DEG_UpDown <- c(LS_pfcAD_DEG_up, LS_pfcAD_DEG_down)
+AG_ecAD_DEG_UpDown <- c(GA_ecAD_DEG_up, GA_ecAD_DEG_down)
+HL_cdHD_DEG_UpDown <- c(LH_cdHD_DEG_up, LH_cdHD_DEG_down)
+
+#create a list of the dataset DEGs
+DEG_Ast_UpDown_combine <- list(YZ_ocNHD = YZ_ocNHD_DEG_UpDown, JX_puAD = JX_puAD_DEG_UpDown, JX_puPD = JX_puPD_DEG_UpDown, HL_cdHD = HL_cdHD_DEG_UpDown, HL_puHD = HL_puHD_DEG_UpDown, RF_accDLBD = RF_accDLBD_DEG_UpDown, RF_accPDD = RF_accPDD_DEG_UpDown, RF_accPD = RF_accPD_DEG_UpDown, SL_pfcAD = SL_pfcAD_DEG_UpDown, AG_ecAD = AG_ecAD_DEG_UpDown, MG_mtgDEM = MG_mtgDEM_DEG_UpDown)
+
+saveRDS(DEG_Ast_UpDown_combine, file = "DEG_set_List_Ast_UpDown_combine.rds")
+
+```{}
+
+#remove duplicated DEG in each DEG vector in the list
+List_DEG_Ast_UpDown_combine <- lapply(DEG_Ast_UpDown_combine, unique)
+
+#create a dataframe for the DEG vector and assign 1 to the 
+List_DEG_Ast_UpDown_combine <- lapply(names(List_DEG_Ast_UpDown_combine), function(name) {
+  vec <- List_DEG_Ast_UpDown_combine[[name]]
+  df <- data.frame(Gene = vec, Value = rep(1, length(vec)))  # Create dataframe with Value and Gene columns
+  colnames(df)[2] <- name  # Rename 'Value' column to the name of the vector
+  df
+})
+
+# Assign names to the dataframes in the list
+names(List_DEG_Ast_UpDown_combine) <- names(List_DEG_Ast_UpDown_combine)
+
+# reduce the list into a single dataframe
+df_DEG_Ast_UpDown_combine <- Reduce(function(x, y) merge(x, y, all=TRUE), List_DEG_Ast_UpDown_combine)
+
+# create a template
+temp_df_DEG_Ast_UpDown_combine <- df_DEG_Ast_UpDown_combine
+
+# define rownames and remove gene column
+rownames(temp_df_DEG_Ast_UpDown_combine) <- temp_df_DEG_Ast_UpDown_combine$Gene
+temp_df_DEG_Ast_UpDown_combine$Gene <- NULL
+
+# Turn all the 1 value to character "Yes"
+temp_df_DEG_Ast_UpDown_combine <- temp_df_DEG_Ast_UpDown_combine %>% mutate_all(funs(case_when( . == 1 ~ "Yes", TRUE ~ as.character(.))))
+
+# counts the number of non-NA value and put the result in a new column "counts"
+temp_df_DEG_Ast_UpDown_combine$counts <- rowSums(!is.na(temp_df_DEG_Ast_UpDown_combine))
+
+# reorder the datafram on decreasing order of counts
+temp_df_DEG_Ast_UpDown_combine <- temp_df_DEG_Ast_UpDown_combine[order(-temp_df_DEG_Ast_UpDown_combine$counts), ]
+
+saveRDS(df_DEG_Ast_UpDown_combine, file = "combined_subpopulation_Ast_DEG_across_all_dataset.rds")
+write.csv(temp_df_DEG_Ast_UpDown_combine, file = "Ranking_combined_subpopulation_Ast_DEG_across_all_dataset.csv")
+
+temp_df_DEG_Ast_UpDown_combine$counts <- NULL
+
+# overlap of DEG with GWAS AD risk genes in the DEGs across all dataset
+#AD risk genes
+AD_risk_gene <- read.csv("C:/Users/ibrof/Documents/ibrahim/Reference_data/AD_RiskGenes_Combined_McQuade_Karch.csv")
+
+# PD reisk genes
+PD_risk_gene <- read.csv("C:/Users/ibrof/Documents/ibrahim/Reference_data/PD_RiskGenes_Combined_Deng_Kumar_Nalls.csv")
+
+# AD risk genes in the DEGs across all dataset
+# Filter the df based on DEGs in the DEG dataframe
+Ast_DEG_AD_risk_gene_overlap <-temp_df_DEG_Ast_UpDown_combine[rownames(temp_df_DEG_Ast_UpDown_combine) %in% AD_risk_gene$Gene, ]
+
+# counts the number of non-NA value and put the result in a new column "counts"
+Ast_DEG_AD_risk_gene_overlap$counts <- rowSums(!is.na(Ast_DEG_AD_risk_gene_overlap))
+
+# reorder the datafram on decreasing order of counts
+Ast_DEG_AD_risk_gene_overlap <- Ast_DEG_AD_risk_gene_overlap[order(-Ast_DEG_AD_risk_gene_overlap$counts), ]
+
+# PD risk genes in the DEGs across all dataset
+# Filter the df based on DEGs in the DEG dataframe
+Ast_DEG_PD_risk_gene_overlap <-temp_df_DEG_Ast_UpDown_combine[rownames(temp_df_DEG_Ast_UpDown_combine) %in% PD_risk_gene$Gene, ]
+
+# counts the number of non-NA value and put the result in a new column "counts"
+Ast_DEG_PD_risk_gene_overlap$counts <- rowSums(!is.na(Ast_DEG_PD_risk_gene_overlap))
+
+# reorder the datafram on decreasing order of counts
+Ast_DEG_PD_risk_gene_overlap <- Ast_DEG_PD_risk_gene_overlap[order(-Ast_DEG_PD_risk_gene_overlap$counts), ]
+
+write.csv(Ast_DEG_AD_risk_gene_overlap, file = "GWAS_AD_risk_gene_overla_with_combined_subpopulation_Ast_DEG_across_all_dataset.csv")
+write.csv(Ast_DEG_PD_risk_gene_overlap, file = "GWAS_PD_risk_gene_overla_with_combined_subpopulation_Ast_DEG_across_all_dataset.csv")
+
+saveRDS(df_DEG_Ast_UpDown_combine, file = "combined_subpopulation_Ast_DEG_across_all_dataset.rds")
+
+```
+
+# convert SYMBOL to ENTREZID
+temp_DEG_Ast_UpDown_combine_ENTREZID <- lapply(DEG_Ast_UpDown_combine, function(x) bitr(x, fromType = "SYMBOL",  toType = c("ENTREZID"),  OrgDb = org.Hs.eg.db))
+
+DEG_Ast_UpDown_combine_ENTREZID <- lapply(temp_DEG_Ast_UpDown_combine_ENTREZID, function(x) x$ENTREZID)
+
+# compare GO enrichment 
+combined_DEG_Ast_compGO <- compareCluster(
+  geneCluster   = DEG_Ast_UpDown_combine_ENTREZID,
+  fun           = "enrichGO",
+  ont = "ALL",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+combined_DEG_Ast_compGO <- gsfilter(combined_DEG_Ast_compGO, by = 'Count', min = 5)
+
+combined_DEG_Ast_compGO@compareClusterResult$"Gene_Ratio" <- sapply(strsplit(as.character(combined_DEG_Ast_compGO@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+df_combined_DEG_Ast_compGO  <- as.data.frame(combined_DEG_Ast_compGO)
+
+#plot
+png("2025_10_20_Ast_combined_DEG_Ast_compGO_Top5.png", width = 13*800, height = 12*1000, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(combined_DEG_Ast_compGO, showCategory = 5, title = "Top 3 pathway", label_format = 80, font.size = 22, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(size = 26, angle = 35,vjust=1, hjust=1), axis.text.y = element_text(size = 38), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold")) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+```{r}
+
+```
+
+
+load("~/ibrahim/snRNA_seq_DEG_analysis/GO_DEG_analysis/Combine_all_Ast_subpopulation_for_GO_analysis_and_extract_terms/Combine_ranking_and_GO/2026_01_28_Ast_combined_DEG_Ast_ranking_and_GO_analysis_workspace.RData")
+
+```{}
+
+#create a list of downregulated DEGs
+DEG_Ast_downregulated_combine <- list(YZ_ocNHD_down = ZY_ocNHD_DEG_down, JX_puAD_down = XJ_puAD_DEG_down, JX_puPD_down = XJ_puPD_DEG_down, HL_cdHD_down = LH_cdHD_DEG_down, HL_puHD_down = LH_puHD_DEG_down, RF_accDLBD_down = FR_accDLBD_DEG_down, RF_accPDD_down = FR_accPDD_DEG_down, RF_accPD_down = FR_accPD_DEG_down, SL_pfcAD_down = LS_pfcAD_DEG_down, AG_ecAD_down = GA_ecAD_DEG_down, MG_mtgDEM_down = GM_mtgAD_DEG_down)
+
+DEG_Ast_upregulated_combine <- list(YZ_ocNHD_up = ZY_ocNHD_DEG_up, JX_puAD_up = XJ_puAD_DEG_up, JX_puPD_up = XJ_puPD_DEG_up, HL_cdHD_up = LH_cdHD_DEG_up, HL_puHD_up = LH_puHD_DEG_up, RF_accDLBD_up = FR_accDLBD_DEG_up, RF_accPDD_up = FR_accPDD_DEG_up, RF_accPD_up = FR_accPD_DEG_up, SL_pfcAD_up = LS_pfcAD_DEG_up, AG_ecAD_up = GA_ecAD_DEG_up, MG_mtgDEM_up = GM_mtgAD_DEG_up)
+
+DEG_Ast_UpDown <- c(DEG_Ast_upregulated_combine, DEG_Ast_downregulated_combine)
+
+temp_DEG_Ast_UpDown_ENTREZID <- lapply(DEG_Ast_UpDown, function(x) bitr(x, fromType = "SYMBOL",  toType = c("ENTREZID"),  OrgDb = org.Hs.eg.db))
+
+DEG_Ast_UpDown_ENTREZID <- lapply(temp_DEG_Ast_UpDown_ENTREZID, function(x) x$ENTREZID)
+
+# compare GO enrichment 
+DEG_Ast_UpDown_compGO <- compareCluster(
+  geneCluster   = DEG_Ast_UpDown_ENTREZID,
+  fun           = "enrichGO",
+  ont = "ALL",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+DEG_Ast_UpDown_compGO <- gsfilter(DEG_Ast_UpDown_compGO, by = 'Count', min = 5)
+
+DEG_Ast_UpDown_compGO@compareClusterResult$"Gene_Ratio" <- sapply(strsplit(as.character(DEG_Ast_UpDown_compGO@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+#plot
+png("2026_01_29_Ast_Subpopulation_combined_DEG_compGO_Top2.png", width = 13*800, height = 7*900, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(DEG_Ast_UpDown_compGO, showCategory = 2, title = "Top 2 Gene ontology", label_format = 80, font.size = 22, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(size = 29, angle = 55,vjust=1, hjust=1), axis.text.y = element_text(size = 38), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +    scale_x_discrete(drop=FALSE)
+dev.off()
+
+svg("2026_01_29_Ast_Subpopulation_combined_DEG_compGO_Top2.svg", width = 16,  height = 12) 
+plot <- clusterProfiler::dotplot(DEG_Ast_UpDown_compGO, showCategory = 2, title = "Top 2 Gene ontology", label_format = 80, font.size = 24, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(angle = 60,vjust=1, hjust=1, size = 19), axis.text.y = element_text(size = 18), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +    scale_x_discrete(drop=FALSE) + NoLegend()
+dev.off()
+
+write.csv(DEG_Ast_UpDown_compGO, file = "2026_01_31_Ast_GO_enriched_pathways_in_DEG_sets_in_each_dataset.csv")
+
+```
+
+
+# ################################
+# select certain terms to plot
+# DEG_Ast_regulated_ENTREZID_combined_DEG contains the enriched pathway for all DEGs merged for all subpopulations from the same data.
+
+PatternOfInterest <- c("Wnt signaling pathway", "cell-cell signaling by wnt", "regulation of Wnt signaling pathway", "negative regulation of Wnt signaling pathway", "canonical Wnt signaling pathway", "regulation of canonical Wnt signaling pathway", "positive regulation of Wnt signaling pathway", "small GTPase mediated signal transduction", "regulation of small GTPase mediated signal transduction", "JNK cascade", "actin filament organization", "microtubule binding", "lamellipodium", "cell leading edge", "glutamatergic synapse", "postsynaptic specialization", "neuron to neuron synapse", "beta-catenin binding", "establishment or maintenance of cell polarity", "focal adhesion", "cell-substrate junction", "adherens junction", "filopodium", "regulation of trans-synaptic signaling", "collagen-containing extracellular matrix", "synaptic membrane")
+
+# ##########################
+# dont' need to change below except ploting
+List_TermOfInterest <- list()
+
+for (pat in  PatternOfInterest ) {
+  temp <- grep(pattern = pat, x = as.data.frame(DEG_Ast_UpDown_compGO)$Description , value = TRUE)
+  List_TermOfInterest <- append(List_TermOfInterest, temp)
+}
+
+TermOfInterest <- do.call("rbind", List_TermOfInterest)
+TermOfInterest <- unique(as.data.frame(TermOfInterest)$V1)
+
+temp <- as.data.frame(DEG_Ast_UpDown_compGO)
+# to get all terms contain the pattern
+#selectedTerm = temp[which (temp$Description %in% TermOfInterest),]
+
+# to get terms only in PatternOfInterest
+selectedTerm = temp[which (temp$Description %in% PatternOfInterest),]
+
+# define as compareClusterResult object
+selectedTerm_compareClusterResult = new("compareClusterResult", compareClusterResult = selectedTerm)
+
+# ##################################
+
+#dotplot for selected term without empty columns
+# plot with empty columns
+svg("2026_01_29_Ast_Subpopulation_combined_regulated_DEG_compGO_SelectedTerm2.svg", width = 13,  height = 12,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+plot <- clusterProfiler::dotplot(selectedTerm_compareClusterResult, showCategory = 20, title = "Top 20 Selecetd GO Terms", label_format = 80, font.size = 22, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(size = 17, angle = 70,vjust=1, hjust=1), axis.text.y = element_text(size = 18), axis.title.x =element_blank(), plot.title = element_text(size=18, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=15), legend.key.size = unit(0.6, 'cm')) +  scale_x_discrete(drop=FALSE) + NoLegend ()
+dev.off()
+
+```{r}
+
+```
+
+# ############################## reorder he terms (on the x-axis) and plot ################################
+temp_selectedTerm_compareClusterResult <- as.data.frame(selectedTerm)
+
+# Get the terms the top enriched terms (based on increasing p.adjust) per cluster
+list_terms_ranked.by.p.adjust <- list()
+for (i in names(DEG_Ast_UpDown)){
+  # Extract the corresponding data frame from temp_selectedTerm_compareClusterResult
+  temp_table <- temp_selectedTerm_compareClusterResult[which(temp_selectedTerm_compareClusterResult$Cluster == i), ]
+  # Order the data frame by p.adjust in increasing order
+  temp_table <- temp_table[order(temp_table$p.adjust), ]
+  # Extract the top 2 enriched terms for the cluster and store them in the list
+  list_terms_ranked.by.p.adjust[[i]] <- temp_table$Description[1:27]
+}
+
+list_Descriptions <- unlist(list_terms_ranked.by.p.adjust) %>% unique
+list_Descriptions <- list_Descriptions[!is.na(list_Descriptions)] #remove NA values
+
+# Construct the data table for plotting 
+# Convert GeneRatio from a string to decimal via parse and eval functions
+temp_selectedTerm_compareClusterResult$Gene_Ratio <- NA
+for (n in 1:nrow(temp_selectedTerm_compareClusterResult)){ 
+  temp_selectedTerm_compareClusterResult[n,"Gene_Ratio"] <- parse(text = temp_selectedTerm_compareClusterResult[n, "GeneRatio"]) %>% eval
+}
+
+# Create rows for clusters which does not show any enrichment in the Top2 from prior plot (e.g. LH_pu_Ast4_HD)
+temp_df <- data.frame(Cluster = rep(c("RF_accPDD_up", "RF_accPD_up", "SL_pfcAD_up", "RF_accPDD_down"), times = length(list_Descriptions)),
+                      ONTOLOGY = rep(NA, times = length(list_Descriptions)),
+                      ID = rep(NA, times = length(list_Descriptions)),
+                      Description = list_Descriptions, 
+                      GeneRatio = rep("0", times = length(list_Descriptions)),
+                      BgRatio = rep("0", times = length(list_Descriptions)),
+                      RichFactor = rep("0", times = length(list_Descriptions)),
+                      FoldEnrichment = rep("0", times = length(list_Descriptions)),
+                      zScore = rep("0", times = length(list_Descriptions)),
+                      pvalue = rep(0, times = length(list_Descriptions)),
+                      p.adjust = rep(0, times = length(list_Descriptions)),
+                      qvalue = rep(0, times = length(list_Descriptions)),
+                      geneID = rep(NA, times = length(list_Descriptions)),
+                      Count = rep(0, times = length(list_Descriptions)),
+                      Gene_Ratio = rep(NA, times = length(list_Descriptions)))
+
+temp_selectedTerm_compareClusterResult <- rbind(temp_selectedTerm_compareClusterResult, temp_df)
+
+table_row.nums <- c()
+for(i in list_Descriptions){
+  table_row.nums <- c(table_row.nums, which(temp_selectedTerm_compareClusterResult$Description == i))
+}
+
+#Assign another name to the list of description
+Descriptions <- list_Descriptions
+#write out the desired order levels of the variable in the list
+Descriptions <- c("Wnt signaling pathway", "cell-cell signaling by wnt", "regulation of Wnt signaling pathway", "negative regulation of Wnt signaling pathway", "canonical Wnt signaling pathway", "regulation of canonical Wnt signaling pathway", "positive regulation of Wnt signaling pathway", "beta-catenin binding", "small GTPase mediated signal transduction", "regulation of small GTPase mediated signal transduction", "JNK cascade", "actin filament organization", "microtubule binding", "lamellipodium", "filopodium", "cell leading edge", "establishment or maintenance of cell polarity", "adherens junction", "focal adhesion", "collagen-containing extracellular matrix", "cell-substrate junction", "regulation of trans-synaptic signaling", "postsynaptic specialization", "neuron to neuron synapse", "glutamatergic synapse",  "synaptic membrane") 
+
+#set the order levels of factor variable
+Descriptions <- factor(Descriptions, levels = Descriptions)
+
+# Specify the order in the Dot Plot via factor()
+temp_selectedTerm_compareClusterResult$Description <- factor(temp_selectedTerm_compareClusterResult$Description, levels = rev(Descriptions))
+
+# Reformatted DotPlot using SCENIC::doHeatMap to include all clusters in axis (even those with no enriched terms)
+svg("2026_01_29_Ast_Subpopulation_combined_DEG_compGO_selected_ordered.svg", width = 16,  height = 11.8,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+dotHeatmap(temp_selectedTerm_compareClusterResult[table_row.nums,c("Cluster", "Description", "Gene_Ratio", "p.adjust")], var.y = "Description", var.x = "Cluster", var.col = "p.adjust", 
+           col.low = "red2" , col.mid = "indianred2", col.high = "blue", #cerulean
+           var.size = "Gene_Ratio", min.size = 4, max.size = 9) &
+  theme(axis.text.x = element_text(angle = 70, size = 22, color = "black"), 
+        axis.text.y = element_text(size = 23, color = "black"), legend.title=element_text(size=15), legend.key.size = unit(0.6, 'cm')) + NoLegend()
+dev.off()
+
+png("2026_01_29_Ast_Subpopulation_combined_regulated_DEG_compGO_SelectedTerm_orderedddddd.png", width = 12*450, height = 7*550, res = 300, pointsize = 4)
+dotHeatmap(temp_selectedTerm_compareClusterResult[table_row.nums,c("Cluster", "Description", "Gene_Ratio", "p.adjust")], var.y = "Description", var.x = "Cluster", var.col = "p.adjust", 
+           col.low = "red2" , col.mid = "indianred2", col.high = "blue", #cerulean
+           var.size = "Gene_Ratio", min.size = 4, max.size = 9) &
+  theme(axis.text.x = element_text(angle = 70, size = 22, color = "black"), 
+        axis.text.y = element_text(size = 23, color = "black"), legend.title=element_text(size=15), legend.key.size = unit(0.6, 'cm'))
+dev.off()
+
+write.csv(temp_selectedTerm_compareClusterResult, file = "2026_01_31_Wnt_signaling_selected_terms_and_its_target_pathways_for_manuscript.csv")
+
+```{}
+
+# #####################################################
+# compare Biological Process enrichment for all subpopulation combining up- and down-regulated
+DEG_Ast_UpDown_compGO_BP <- compareCluster(
+  geneCluster   = DEG_Ast_UpDown_ENTREZID,
+  fun           = "enrichGO",
+  ont = "BP",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+DEG_Ast_UpDown_compGO_BP <- gsfilter(DEG_Ast_UpDown_compGO_BP, by = 'Count', min = 5)
+
+DEG_Ast_UpDown_compGO_BP@compareClusterResult$"Gene_Ratio" <- sapply(strsplit(as.character(DEG_Ast_UpDown_compGO_BP@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+df_DEG_Ast_UpDown_compGO_BP  <- as.data.frame(DEG_Ast_UpDown_compGO_BP)
+
+png("2026_01_29_Ast_Subpopulation_combined_DEG_BP_Top2.png", width = 11*800, height = 7*900, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(DEG_Ast_UpDown_compGO_BP, showCategory = 2, title = "Top 2 Biological Process", label_format = 80, font.size = 22, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(size = 29, angle = 35,vjust=1, hjust=1), axis.text.y = element_text(size = 38), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +    scale_x_discrete(drop=FALSE)
+dev.off()
+
+svglite("2026_01_29_Ast_Subpopulation_combined_DEG_BP_Top2.svg", width = 16.5,  height = 10.4) 
+plot <- clusterProfiler::dotplot(DEG_Ast_UpDown_compGO_BP, showCategory = 2, title = "Top 2 Biological Process", label_format = 80, font.size = 24, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(angle = 60,vjust=1, hjust=1, size = 21), axis.text.y = element_text(size = 21), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +    scale_x_discrete(drop=FALSE)
+dev.off()
+
+# compare Cellular Component enrichment for all subpopulation combining up- and down-regulated
+DEG_Ast_UpDown_compGO_CC <- compareCluster(
+  geneCluster   = DEG_Ast_UpDown_ENTREZID,
+  fun           = "enrichGO",
+  ont = "CC",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+DEG_Ast_UpDown_compGO_CC <- gsfilter(DEG_Ast_UpDown_compGO_CC, by = 'Count', min = 5)
+
+DEG_Ast_UpDown_compGO_CC@compareClusterResult$"Gene_Ratio" <- sapply(strsplit(as.character(DEG_Ast_UpDown_compGO_CC@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+df_DEG_Ast_UpDown_compGO_CC  <- as.data.frame(DEG_Ast_UpDown_compGO_CC)
+
+png("2026_01_29_Ast_Subpopulation_combined_DEG_CC_Top2.png", width = 11*800, height = 6*700, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(DEG_Ast_UpDown_compGO_CC, showCategory = 2, title = "Top 2 Cellular component", label_format = 80, font.size = 22, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(size = 29, angle = 35,vjust=1, hjust=1), axis.text.y = element_text(size = 38), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +    scale_x_discrete(drop=FALSE)
+dev.off()
+
+svglite("2026_01_29_Ast_Subpopulation_combined_DEG_CC_Top2.svg", width = 14.5,  height = 8) 
+plot <- clusterProfiler::dotplot(DEG_Ast_UpDown_compGO_CC, showCategory = 2, title = "Top 2 Cellular component", label_format = 80, font.size = 24, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(angle = 60,vjust=1, hjust=1, size = 19), axis.text.y = element_text(size = 20), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +    scale_x_discrete(drop=FALSE)
+dev.off()
+
+# compare Molecular function enrichment for all subpopulation combining up- and down-regulated
+DEG_Ast_UpDown_compGO_MF <- compareCluster(
+  geneCluster   = DEG_Ast_UpDown_ENTREZID,
+  fun           = "enrichGO",
+  ont = "MF",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+DEG_Ast_UpDown_compGO_MF <- gsfilter(DEG_Ast_UpDown_compGO_MF, by = 'Count', min = 5)
+
+DEG_Ast_UpDown_compGO_MF@compareClusterResult$"Gene_Ratio" <- sapply(strsplit(as.character(DEG_Ast_UpDown_compGO_MF@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+df_DEG_Ast_UpDown_compGO_MF  <- as.data.frame(DEG_Ast_UpDown_compGO_MF)
+
+png("2026_01_29_Ast_Subpopulation_combined_DEG_MF_Top2.png", width = 11*1000, height = 6*700, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(DEG_Ast_UpDown_compGO_MF, showCategory = 2, title = "Top 2 Molecular function", label_format = 80, font.size = 22, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(size = 29, angle = 35,vjust=1, hjust=1), axis.text.y = element_text(size = 38), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +    scale_x_discrete(drop=FALSE)
+dev.off()
+
+svg("2026_01_29_Ast_Subpopulation_combined_DEG_MF_Top2.svg", width = 16.5,  height = 8) 
+plot <- clusterProfiler::dotplot(DEG_Ast_UpDown_compGO_MF, showCategory = 2, title = "Top 2 Molecular function", label_format = 80, font.size = 24, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(angle = 45,vjust=1, hjust=1, size = 19), axis.text.y = element_text(size = 18), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=18)) +    scale_x_discrete(drop=FALSE) + NoLegend()
+dev.off()
+
+# ####################################
+Ast_DEG_KEGG <- compareCluster(geneCluster= DEG_Ast_UpDown_ENTREZID,
+                            fun           = "enrichKEGG",
+                            organism = 'hsa', # mmu for mouse, hsa for human
+                            universe = All_Universe_Genes_ENTREZID,
+                            pvalueCutoff  = 0.05,
+                            use_internal_data=T,
+                            pAdjustMethod = "BH",
+                            qvalueCutoff = 0.05)
+
+Ast_DEG_KEGG <- gsfilter(Ast_DEG_KEGG, by = 'Count', min = 5)
+
+Ast_DEG_KEGG@compareClusterResult[["Gene_Ratio"]] <- sapply(strsplit(as.character(Ast_DEG_KEGG@compareClusterResult[["GeneRatio"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+png("Ast_DEG_KEGG.png", width = 10*500, height = 8*600, res = 300, pointsize = 4) 
+plot <- clusterProfiler::dotplot(Ast_DEG_KEGG, showCategory = 3, title = "KEGG pathway", label_format = 80, font.size = 22, by = "Gene_Ratio")
+plot + theme(axis.text.x = element_text(angle = 60,vjust=1, hjust=1), axis.title.x =element_blank(), plot.title = element_text(size=30, face = "bold")) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+```
+
+save.image("2026_01_29_Ast_combined_DEG_Ast_ranking_and_GO_analysis_workspace.RData")
+
+```{r}
+
+```
+
+

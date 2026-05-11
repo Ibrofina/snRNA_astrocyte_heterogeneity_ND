@@ -1,0 +1,548 @@
+---
+title: "Astrocyte_psudotime_analysis"
+author: "Ibrahim Saliu"
+date: "2025-07-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Ast_FinalObj <- readRDS("C:/Users/ibrofina/Downloads/Putamen_Astrocyte_FinalObj_dim15_res0.25_ClusterRenamed.rds")
+DefaultAssay(Ast_FinalObj) <- "integrated"
+
+DefaultAssay(Astrocyte_Final) <- "SCT"
+# set the order for CTRL, AD and PD
+Ast_FinalObj@meta.data$Genotype <- factor(Ast_FinalObj@meta.data$Genotype,levels = c("CTRL", "AD", "PD"))
+
+Ast_FinalObj[["CellTypeID"]] <- Idents(object = Ast_FinalObj)
+DimPlot(Ast_FinalObj, reduction = "umap", label = TRUE)
+
+# subset Ast-0 + Ast-1 cells
+temp_Ast1_Obj <- subset(Ast_FinalObj, idents = c("Ast-0", "Ast-1"))
+DimPlot(temp_Ast1_Obj, reduction = "umap", label = TRUE)
+
+table(temp_Ast1_Obj@meta.data$Genotype, temp_Ast1_Obj@active.ident)
+
+# subset cell for each brain region
+Astrocytes_puAst1_CTRL <- subset(temp_Ast1_Obj, subset = Genotype == "CTRL")
+DimPlot(Astrocytes_puAst1_CTRL, reduction = "umap", label = TRUE)
+
+Astrocytes_puAst1_AD <- subset(temp_Ast1_Obj, subset = Genotype == "AD") 
+DimPlot(Astrocytes_puAst1_AD, reduction = "umap", label = TRUE)
+
+Astrocytes_puAst1_PD <- subset(temp_Ast1_Obj, subset = Genotype == "PD") 
+DimPlot(Astrocytes_puAst1_PD, reduction = "umap", label = TRUE)
+
+
+# Pseudotime analysis of CTRL
+Obj_temp <- Astrocytes_puAst1_CTRL
+DefaultAssay(Obj_temp) <- "integrated"
+
+# run PCA
+Obj_temp <- RunPCA(Obj_temp,  npcs = 15)
+
+#set dims parameter
+dim=1:15
+Obj_temp <- RunUMAP(Obj_temp, reduction = "pca", dims = dim)
+
+# Visualization
+Idents(Obj_temp) <- Obj_temp@meta.data$CellTypeID
+DimPlot(Obj_temp, reduction = "umap", label = TRUE)
+
+Astrocytes_puAst1_CTRL <- Obj_temp
+DimPlot(Astrocytes_puAst1_CTRL, reduction = "umap", label = TRUE)
+
+png("Pu_Astrocyte_FinalObj_Dim15_Res0.25_Psuedotime_puAst1_CTRL_cluster.png",   
+    width = 4*300,        # 5 x 300 pixels
+    height = 3*300,
+    res = 300,            # 300 pixels per inch
+    pointsize = 12)        # smaller font size
+  DimPlot(Astrocytes_puAst1_CTRL, reduction = "umap", label = FALSE, cols =c("coral3", "deepskyblue3"))
+dev.off()
+
+png("Pu_Astrocyte_FinalObj_Dim15_Res0.25_Psuedotime_puAst1_CTRL_By_orig.ident.png",    
+  width = 5*300,        # 5 x 300 pixels
+  height = 3*300,
+  res = 300,            # 300 pixels per inch
+  pointsize = 8)        # smaller font size
+  DimPlot(Astrocytes_puAst1_CTRL, reduction = "umap", group.by = "orig.ident")
+dev.off()
+
+# use low dimention embedding and cell label directly
+ReducedDimention_puAst1_CTRL <-  Embeddings(Astrocytes_puAst1_CTRL, reduction = "umap")
+
+# cluster label
+CellLabel_puAst1_CTRL <- as.character(Astrocytes_puAst1_CTRL@active.ident)
+
+# use slingshot wrapper function to perform both steps in a single call 
+sds_puAst1_CTRL <- slingshot(ReducedDimention_puAst1_CTRL, CellLabel_puAst1_CTRL, start.clus = "Ast-0", omega = TRUE, omega_scale = 1.5, extend = 'n', stretch = 0, approx_points = FALSE)
+
+lapply(sds_puAst1_CTRL@metadata$curves$Lineage1, head) # has one lineage
+
+# get color palette (by cell type)
+colourCount <- length(table(Astrocytes_puAst1_CTRL@active.ident)) # number of levels
+getPalette <- colorRampPalette(c("coral3", "deepskyblue3"))
+
+# plot all lineage lines in the same graph
+png("Pu_Astrocyte_FinalObj_Dim15_Res0.25_Psuedotime_puAst1_CTRL_curve.png",       width = 3*300,        # 5 x 300 pixels
+    height = 3*300,
+    res = 300,            # 300 pixels per inch
+    pointsize = 5)        # smaller font size
+    
+  plot(ReducedDimention_puAst1_CTRL, col = getPalette(colourCount)[Astrocytes_puAst1_CTRL@active.ident], asp = 1, pch = 16)
+  lines(SlingshotDataSet(sds_puAst1_CTRL), lwd = 3, col = 'black')
+dev.off()
+
+#Same analysis for Ast-1 AD and PD cells, as well as Ast-2 CTRL, AD, and PD cells
+
+```{r}
+
+# plot individual gene expression across pseudotime, worked
+GeneExpreWithPseutotime_puAst1_CTRL <- t(as.matrix(Expression_puAst1_CTRL))
+GeneExpreWithPseutotime_puAst1_CTRL <- merge(GeneExpreWithPseutotime_puAst1_CTRL, slingPseudotime(sds_puAst1_CTRL, na = TRUE), by = "row.names")
+rownames(GeneExpreWithPseutotime_puAst1_CTRL) <- GeneExpreWithPseutotime_puAst1_CTRL$Row.names
+GeneExpreWithPseutotime_puAst1_CTRL$Row.names <- NULL
+
+# combine with metadata
+GeneExpreWithPseutotime_puAst1_CTRL <- merge(GeneExpreWithPseutotime_puAst1_CTRL, Metadata_puAst1_CTRL, by = "row.names")
+rownames(GeneExpreWithPseutotime_puAst1_CTRL) <- GeneExpreWithPseutotime_puAst1_CTRL$Row.names
+GeneExpreWithPseutotime_puAst1_CTRL$Row.names <- NULL
+
+# take a look of the last 7 columns to make sure data is correct
+GeneExpreWithPseutotime_puAst1_CTRL[1:3, (ncol(GeneExpreWithPseutotime_puAst1_CTRL) -7):ncol(GeneExpreWithPseutotime_puAst1_CTRL) ]
+
+# get colors for cell types, use the selected color for Astrocytes subpopulations
+#Cell_colors <- rev(names(table(getPalette(colourCount)[Astrocytes_puAst1_CTRL@active.ident])))
+Cell_colors <- c("coral3", "deepskyblue3")
+
+# to change lineages: need to change 3 places for gene names
+png("Pu_Astrocyte_FinalObj_Dim15_Res0.25_Psuedotime_puAst1_CTRL_DEGs_Exp_GPC5.png", width = 7*300, height = 5*300, res = 300,  pointsize = 6)
+ggplot(GeneExpreWithPseutotime_puAst1_CTRL, aes(x = Lineage1 , y = GPC5, colour = CellTypeID )) + geom_quasirandom(groupOnX = FALSE) + theme_classic() +
+    xlab("pseudotime") + ylab("GPC5 expression") + ggtitle("Cells ordered by pseudotime")+scale_colour_manual(values = Cell_colors) + geom_point(size = 3) + geom_smooth(data=GeneExpreWithPseutotime_puAst1_CTRL, aes(x=Lineage1 , y=GPC5), method = 'loess', fill="black",   colour="grey", size=1)
+dev.off()
+
+```
+
+# draw heatmap using ComplexHeatmap for each lineage
+library(ComplexHeatmap)
+library(matrixStats) # for rowSds
+
+# convert data to dense matrix
+Data_to_plot_Lineage_puAst1_CTRL <- as.matrix(Data_to_plot_Lineage_puAst1_CTRL)
+mat <- Data_to_plot_Lineage_puAst1_CTRL
+mat_Zscore_puAst1_CTRL <- (mat-rowMeans(mat))/(rowSds(as.matrix(mat)))[row(mat)]
+mat_Zscore_puAst1_CTRL <- mat_Zscore_puAst1_CTRL[complete.cases(as.matrix(mat_Zscore_puAst1_CTRL)), ]
+mat_Zscore_puAst1_CTRL[1:2, (ncol(mat_Zscore_puAst1_CTRL) -4):ncol(mat_Zscore_puAst1_CTRL)]
+
+range(mat_Zscore_puAst1_CTRL)
+
+# define color, numbers are the range of the values in the matrix to be ploted
+library(circlize) # for colorRamp2
+col_fun_heatmap = colorRamp2(c( -3, 0, 3), c( "blue", "white", "red"))
+
+png("Pu_Astrocyte_FinalObj_Dim15_Res0.25_Psuedotime_puAst1_PD_DEGs_Heatmap_km2.png",  
+  width = 10*300,        # 5 x 300 pixels
+  height = 8*300,
+  res = 300,            # 300 pixels per inch
+  pointsize = 6)        # smaller font size
+HeatmapValue_puAst1_CTRL <- Heatmap(mat_Zscore_puAst1_PD, col = col_fun_heatmap, use_raster = T, name = "Enrichment", cluster_columns = FALSE, show_row_names = F, show_column_names = FALSE, top_annotation = ColumnAnnotation_puAst1_PD, row_km = 3,  row_km_repeats = 100)
+HeatmapValue_puAst1_CTRL = draw(HeatmapValue_puAst1_CTRL)
+dev.off()
+
+# get row order
+HeatmapModules_puAst1_CTRL <- row_order(HeatmapValue_puAst1_CTRL)
+lapply(HeatmapModules_puAst1_CTRL, head)
+names(HeatmapModules_puAst1_CTRL) <- c("Module2", "Module1" )
+
+###########################
+# subset cluster 2 of puAst1_CTRL
+mat_Zscore_puAst1_CTRL_Module1 <- as.matrix(mat_Zscore_puAst1_CTRL[HeatmapModules_puAst1_CTRL$Module1,])
+png("Pu_Astrocyte_FinalObj_Dim15_Res0.25_Psuedotime_puAst1_CTRL_DEGs_Heatmap_km2_Module1.png",   
+  width = 10*300,        # 5 x 300 pixels
+  height = 6*300,
+  res = 300,            # 300 pixels per inch
+  pointsize = 6)        # smaller font size
+HeatmapValue_puAst1_CTRL_Module1 <- Heatmap(mat_Zscore_puAst1_CTRL_Module1, col = col_fun_heatmap, name = "Enrichment", cluster_columns = FALSE, show_row_names = TRUE, show_column_names = FALSE, top_annotation = ColumnAnnotation_puAst1_CTRL)
+HeatmapValue_puAst1_CTRL_Module1 = draw(HeatmapValue_puAst1_CTRL_Module1)
+dev.off()
+
+CoExprModule_puAst1_CTRL_Module1_Genes <- rownames(mat_Zscore_puAst1_CTRL_Module1)
+write.csv(list_pseudotime_DEG_puAst1_CTRL[[1]][which(rownames(list_pseudotime_DEG_puAst1_CTRL[[1]]) %in% rownames(mat_Zscore_puAst1_CTRL_Module1)),  ], "Pu_Astrocyte_FinalObj_Dim15_Res0.25_Psuedotime_puAst1_CTRL_DEGs_Heatmap_km2_Module1_Genes.csv")
+
+```{r}
+
+```
+
+
+# ############################ Pseudotime DEG compaeison acros  all dataset #############################################
+load("~/ibrahim/Astrocyte_Psuedotime_analysis/GO_pseudotime_DEG_comparison/Pseudotime_DEG_Module123_GO_Analysis.RData")
+
+#homologous subpopulations from all dataset
+PseudotimeDEG_Ast_list2 <- list(PseudotimeDEG_XJ_Ast1_PU_CTRL, PseudotimeDEG_XJ_Ast1_PU_AD, PseudotimeDEG_XJ_Ast1_PU_PD, PseudotimeDEG_XJ_Ast2_PU_CTRL, PseudotimeDEG_XJ_Ast2_PU_AD, PseudotimeDEG_XJ_Ast2_PU_PD, PseudotimeDEG_LS_Ast1_PFC_CTRL, PseudotimeDEG_LS_Ast1_PFC_AD, PseudotimeDEG_LS_Ast2_PFC_CTRL, PseudotimeDEG_LS_Ast2_PFC_AD, PseudotimeDEG_GA_Ast1_EC_CTRL, PseudotimeDEG_GA_Ast1_EC_AD,  PseudotimeDEG_GA_Ast2_EC_CTRL, PseudotimeDEG_GA_Ast2_EC_AD, PseudotimeDEG_FR_Ast1_ACC_CTRL, PseudotimeDEG_FR_Ast1_ACC_DLBD, PseudotimeDEG_FR_Ast1_ACC_PD, PseudotimeDEG_FR_Ast1_ACC_PDD, PseudotimeDEG_FR_Ast2_ACC_CTRL, PseudotimeDEG_FR_Ast2_ACC_DLBD, PseudotimeDEG_FR_Ast2_ACC_PD, PseudotimeDEG_FR_Ast2_ACC_PDD, PseudotimeDEG_ZY_Ast1_OC_CTRL, PseudotimeDEG_ZY_Ast1_OC_NHD, PseudotimeDEG_ZY_Ast2_OC_CTRL, PseudotimeDEG_ZY_Ast2_OC_NHD,  PseudotimeDEG_GM_Ast1_MTG_CTRL, PseudotimeDEG_GM_Ast1_MTG_AD, PseudotimeDEG_GM_Ast2_MTG_CTRL, PseudotimeDEG_GM_Ast2_MTG_AD, PseudotimeDEG_LH_Ast2_Pu_CTRL, PseudotimeDEG_LH_Ast2_Pu_HD, PseudotimeDEG_LH_Ast2_Cd_CTRL, PseudotimeDEG_LH_Ast2_Cd_HD)
+
+PseudotimeDEG_Ast2 <- Reduce(function(x, y) merge(x, y, all=TRUE), PseudotimeDEG_Ast_list2)
+
+rownames(PseudotimeDEG_Ast2) <- PseudotimeDEG_Ast2$GeneName
+PseudotimeDEG_Ast2$GeneName <- NULL
+dim(PseudotimeDEG_Ast2)
+# 17578  x  34
+
+#swap the first two letters of the columnames
+colnames(PseudotimeDEG_Ast2) <- sub("^([A-Za-z])([A-Za-z])_", "\\2\\1_", colnames(PseudotimeDEG_Ast2))
+colnames(PseudotimeDEG_Ast2) <- gsub("MG_mtg_Ast(1|2)_AD$", "MG_mtg_Ast\\1_DEM", colnames(PseudotimeDEG_Ast2))
+colnames(PseudotimeDEG_Ast2)
+
+# remove genes that are not expressed in atleast 10 homologous subpopulation out of the 34 homologous subpopulation  
+DataToPlot_Ast2 <- PseudotimeDEG_Ast2[rowSums(!is.na(PseudotimeDEG_Ast2)) >= 10, ]
+dim(DataToPlot_Ast2)
+# 1969  X 34
+
+#DataToPlot_Ast <- PseudotimeDEG_Ast
+
+# assign "NotSig" to NA 
+DataToPlot_Ast2[is.na(DataToPlot_Ast2)] <- "NotDEG"
+
+# convert to numerical
+DataToPlot_Ast2 <- DataToPlot_Ast2 %>% mutate_all(funs(case_when(
+  . == "up" ~ 1,
+  . == "down" ~ -1,
+  . == "NotDEG"  ~ 0
+)))
+
+library(circlize)
+col_fun = colorRamp2(c(-1, 0, 1), c("mediumblue", "gray98", "orangered2"))
+#col_fun(seq(-1, 1))
+
+genes.to.label <- c("APOE", "APP", "APOC1", "PARK7", "BAG3", "C3", "CD44", "CLU", "CRYAB", "AQP4", "CST3", "B2M", "SPARCL1", "DPP10", "FOS", "F3", "CRYAB", "GAPDH", "GFAP", "GJA1", "GPC5", "GLUL", "HSPB1", "GAPDH", "ITM2C", "MAOB", "MT3", "MT2A", "NRXN1", "RORA", "S100B", "SLC1A2", "SPARC", "TNC", "VCAN", "VIM", "SIPA1L1")
+
+position.to.lable <- which(rownames(DataToPlot_Ast2) %in% genes.to.label)
+
+genes.to.label <- rownames(DataToPlot_Ast2)[c(which(rownames(DataToPlot_Ast2) %in% genes.to.label))]
+
+# define color annotation 
+ColumnAnnotation <- HeatmapAnnotation(region = str_sub(sapply(strsplit(colnames(DataToPlot_Ast2), "_"), function(x){x[2]})), 
+                                      subpopulation = str_sub(sapply(strsplit(colnames(DataToPlot_Ast2), "_"), function(x) {x[3]})),
+                                      condition = str_sub(sapply(strsplit(colnames(DataToPlot_Ast2), "_"), function(x) {x[4]})),
+                      col = list(region = c("pu" = "antiquewhite2", "acc" = "cadetblue2", "ec" = "chartreuse1", "pfc" = "chartreuse4", "oc" = "plum", "cd" = "blue4", "mtg" = "red4"),
+                                subpopulation = c("Ast0" = "coral3", "Ast1" = "deepskyblue3", "Ast2" = "goldenrod2", "Ast3" = "gray47", "Ast4" = "mediumturquoise", "Ast5" = "mediumorchid3", "Ast6" = "gold4", "Ast7" = "forestgreen"),
+                                condition = c("CTRL" = "green", "AD" = "red", "DLBD" = "orange1", "PD" = "blue", "PDD" = "purple2", "NHD" = "sienna4", "HD" = "midnightblue", "DEM" = "darkslategray")), annotation_legend_param = list(grid_height = unit(0.9, "cm"), grid_width = unit(7, "mm"), labels_gp = gpar(fontsize = 16), title_gp = gpar(fontsize = 16, fontface = "bold")))
+
+RowAnnotation = rowAnnotation(genes = anno_mark(at = position.to.lable, labels = genes.to.label ,  labels_gp = gpar(fontsize = 12)))
+
+png("Ast_PseudotimeDEG_sharedByAllData_heatmap_Cluster_by_columnkm2_rowkm3_filtered.png", width = 10*500, height = 8*500, res = 300, pointsize = 8)  
+Heatmap(as.matrix(DataToPlot_Ast2), name = "Trend", column_title = "pseudotime DEGs shared by all scRNA-seq studies", column_km_repeats = 100, column_km = 2, row_km = 3, cluster_columns  = TRUE, column_names_rot = 80, column_names_gp = gpar(fontsize = 16), col = col_fun, show_row_names = FALSE,  top_annotation = ColumnAnnotation, right_annotation = RowAnnotation, heatmap_legend_param = list(labels_gp = gpar(fontsize = 14), legend_height = unit(5, "cm"), legend_width = unit(7, "cm"), grid_height = unit(5, "cm"), grid_width = unit(5, "mm"), title_gp = gpar(fontsize = 15, fontface = "bold")))
+dev.off()
+
+svg("Ast_PseudotimeDEG_sharedByAllData_heatmap_Cluster_by_columnkm2_rowkm3_filtered.svg", width = 17,  height = 13,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+Heatmap(as.matrix(DataToPlot_Ast2), name = "Trend", column_title = "pseudotime DEGs shared by all scRNA-seq studies", column_km_repeats = 100, column_km = 2, row_km = 3, cluster_columns  = TRUE, column_names_rot = 80, column_names_gp = gpar(fontsize = 16), col = col_fun, show_row_names = FALSE,  top_annotation = ColumnAnnotation, right_annotation = RowAnnotation, heatmap_legend_param = list(labels_gp = gpar(fontsize = 14), legend_height = unit(5, "cm"), legend_width = unit(7, "cm"), grid_height = unit(5, "cm"), grid_width = unit(5, "mm"), title_gp = gpar(fontsize = 15, fontface = "bold")))
+dev.off()
+
+
+#Assign the heaatmap
+p1 <- Heatmap(as.matrix(DataToPlot_Ast2), name = "Trend", column_title = "pseudotime DEGs shared by all scRNA-seq studies", column_km_repeats = 100, column_km = 2, row_km = 3, cluster_columns  = TRUE, column_names_rot = 80, column_names_gp = gpar(fontsize = 16), col = col_fun, show_row_names = FALSE,  top_annotation = ColumnAnnotation, right_annotation = RowAnnotation, heatmap_legend_param = list(labels_gp = gpar(fontsize = 14), legend_height = unit(5, "cm"), legend_width = unit(7, "cm"), grid_height = unit(5, "cm"), grid_width = unit(5, "mm"), title_gp = gpar(fontsize = 15, fontface = "bold")))
+
+# Rename the row module from the complex Heatmap (3 modules) 
+p1 = draw(p1)
+HeatmapModules <- row_order(p1)
+lapply(HeatmapModules, head)
+
+names(HeatmapModules) <- c("Core Module0", "Core Module1", "Core Module2")
+lapply(HeatmapModules, head)
+
+#convert to matrix
+Pseudotime_AstDEG_Modules <- as.matrix(DataToPlot_Ast2)
+
+#reorder the column similar to the heatmap column arrangement
+reorder_column <- c("LH_pu_Ast2_CTRL", "GM_mtg_Ast2_AD", "ZY_oc_Ast2_NHD", "XJ_pu_Ast2_PD", "XJ_pu_Ast2_CTRL", "LH_pu_Ast2_HD", "GA_ec_Ast2_CTRL", "GM_mtg_Ast2_CTRL", "FR_acc_Ast2_PDD", "FR_acc_Ast2_PD", "FR_acc_Ast2_CTRL", "ZY_oc_Ast2_CTRL", "LS_pfc_Ast2_AD", "LS_pfc_Ast2_CTRL", "LH_cd_Ast2_HD", "XJ_pu_Ast2_AD", "LH_cd_Ast2_CTRL", "FR_acc_Ast2_DLBD", "ZY_oc_Ast1_NHD", "ZY_oc_Ast2_CTRL", "LS_pfc_Ast1_AD", "XJ_pu_Ast1_PD", "XJ_pu_Ast1_AD", "XJ_pu_Ast1_CTRL", "FR_acc_Ast1_CTRL", "FR_acc_Ast1_PDD", "FR_acc_Ast1_DLBD", "GA_ec_Ast1_CTRL", "FR_acc_Ast1_PD", "GA_ec_Ast2_AD", "GA_ec_Ast1_AD", "GM_mtg_Ast1_AD", "GM_mtg_Ast1_CTRL")
+
+Pseudotime_AstDEG_Modules <- Pseudotime_AstDEG_Modules[,reorder_column]
+
+```{}
+
+# ################## subset Core module0 (cluster1) ################################
+Pseudotime_AstDEG_Module0 <- Pseudotime_AstDEG_Modules[HeatmapModules$"Core Module0",]
+svg("Pseudotime_AstDEG_heatmap_columnkm3_rowkm4_plot_Module0.svg",       
+    width = 16,        
+    height = 12,
+    pointsize = 2)        # smaller font size
+HeatmapValue_Module0 <- Heatmap(Pseudotime_AstDEG_Module0, col = col_fun, name = "Avg_Exp", column_names_rot = 75, column_names_gp = gpar(fontsize = 17), cluster_columns = FALSE, show_row_names = TRUE, show_column_names = TRUE, heatmap_legend_param = list(legend_height = unit(5, "cm")))
+HeatmapValue_Module0 = draw(HeatmapValue_Module0)
+dev.off()
+
+#Extract the genes in module 1
+Module0_Genes <- rownames(Pseudotime_AstDEG_Module0)
+
+# ############################## subset Core Module 1 (cluster 2) ##############################  
+Pseudotime_AstDEG_Module1 <- Pseudotime_AstDEG_Modules[HeatmapModules$"Core Module1",]
+svg("Pseudotime_AstDEG_heatmap_columnkm3_rowkm4_plot_Module1.svg",       
+    width = 16,        
+    height = 12,
+    pointsize = 2)        # smaller font size
+HeatmapValue_Module1 <- Heatmap(Pseudotime_AstDEG_Module1, col = col_fun, name = "Avg_Exp", column_names_rot = 75, column_names_gp = gpar(fontsize = 17), cluster_columns = FALSE, show_row_names = TRUE, show_column_names = TRUE, heatmap_legend_param = list(legend_height = unit(5, "cm")))
+HeatmapValue_Module1 = draw(HeatmapValue_Module1)
+dev.off()
+
+#Extract the genes in module 2
+Module1_Genes <- rownames(Pseudotime_AstDEG_Module1)
+
+# ############################## subset Core Module 2 (cluster3) ###################################
+Pseudotime_AstDEG_Module2 <- Pseudotime_AstDEG_Modules[HeatmapModules$"Core Module2",]
+svg("Pseudotime_AstDEG_heatmap_columnkm3_rowkm4_plot_Module2.svg",       
+    width = 16,        
+    height = 12,
+    pointsize = 2)        # smaller font size
+HeatmapValue_Module2 <- Heatmap(Pseudotime_AstDEG_Module2, col = col_fun, name = "Avg_Exp", column_names_rot = 75, column_names_gp = gpar(fontsize = 17), cluster_columns = FALSE, show_row_names = TRUE, show_column_names = TRUE, heatmap_legend_param = list(legend_height = unit(5, "cm")))
+HeatmapValue_Module2 = draw(HeatmapValue_Module2)
+dev.off()
+
+#Extract the genes in module 2
+Module2_Genes <- rownames(Pseudotime_AstDEG_Module2)
+
+#Bar plot of number of genes in each module
+Modules_all <- list("Core Module0" = Module0_Genes, "Core Module1" = Module1_Genes, "Core Module2" = Module2_Genes)
+Modules_genes <- lengths(Modules_all)
+Modules_number <- c("Core Module0", "Core Module1", "Core Module2")
+Modules_PseudotimeDEG <- data.frame(Modules_genes, Modules_number)
+
+#png("Modules_Pseudotime_DEG_barplot.png",  width = 4*450,  height = 6*500, res = 300,  pointsize = 5)
+svg("Modules_Pseudotime_DEG_barplot.svg", width = 6,  height = 9,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+ggplot(Modules_PseudotimeDEG, aes(fill = Modules_number, y = Modules_genes, x = factor(Modules_number, level = c("Core Module0", "Core Module1", "Core Module2")))) + geom_bar(position = position_dodge(), stat = "identity") + scale_fill_manual(values = c('firebrick', 'green', 'steelblue')) +
+geom_text(
+  aes(label = Modules_genes, group = factor(Modules_number, level = c("Core Module0", "Core Module1", "Core Module2"))), 
+  position = position_dodge(0.9),
+  vjust = -0.3, size = 8) +
+  guides(fill = guide_legend(title = "Module")) +
+  labs(x = "", y = "Number of Pseudotime DEGs") +
+  theme(axis.line = element_line(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) + 
+        theme(axis.text=element_text(size=20), axis.text.x = element_text(angle = 45, hjust = 1, size=22), axis.title.y=element_text(size=20), legend.text = element_text(size = 20), legend.key.size = unit(0.9, 'cm'), legend.title = element_text(size=20, face = "bold"))
+        dev.off()
+
+```
+
+# ################################## Pseudotime GO across all dataset ########################################
+# convert SYMBOL to ENTREZID in our data and Smjic data, universal parameter
+# create a list of all the genes both in our data and Smjic 
+All_Universe_Genes <- list(rownames(Xu_all_expressed_genes), rownames(Grubman_all_expressed_genes), rownames(Lau_all_expressed_genes), rownames(Feleke_all_expressed_genes), rownames(Lee_Pu_all_expressed_genes), rownames(Lee_Cd_all_expressed_genes), rownames(Zhou_all_expressed_genes), rownames(Gabitto_all_expressed_genes))
+
+# convert
+All_Universe_Genes_ENTREZID <- lapply(All_Universe_Genes, function(x) bitr(x, fromType = "SYMBOL",  toType = c("ENTREZID"),  OrgDb = org.Hs.eg.db))
+
+All_Universe_Genes_ENTREZID <- lapply(All_Universe_Genes_ENTREZID, function(x) x$ENTREZID)
+
+
+# ################ Combine the genes in the 3 modules together in a list #####################
+Module_Genes <-list("Core Module0" = Module0_Genes, "Core Module1" = Module1_Genes, "Core Module2" = Module2_Genes)
+
+#Convert from gene symbol to ENTREZID
+PseudotimeDEG_Ast_Module123 <- lapply(Module_Genes, function(x) bitr(x, fromType = "SYMBOL",  toType = c("ENTREZID"),  OrgDb = org.Hs.eg.db))
+
+PseudotimeDEG_Ast_Module123_ENTREZID <- lapply(PseudotimeDEG_Ast_Module123, function(x) x$ENTREZID)
+
+# ###################### All Gene Ontology Category ###################################3
+ego_All_Module123 <- compareCluster(
+  geneCluster   = PseudotimeDEG_Ast_Module123_ENTREZID,
+  fun           = "enrichGO",
+  ont = "ALL",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+Module123_GO_All <- gsfilter(ego_All_Module123, by = 'Count', min = 5)
+
+Module123_GO_All@compareClusterResult$GeneRatio_old <- Module123_GO_All@compareClusterResult$GeneRatio
+
+Module123_GO_All@compareClusterResult$GeneRatio <- sapply(strsplit(as.character(Module123_GO_All@compareClusterResult[["GeneRatio_old"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+head(Module123_GO_All)
+
+# ###################### Biological process ########################################
+ego_BP_Module123 <- compareCluster(
+  geneCluster   = PseudotimeDEG_Ast_Module123_ENTREZID,
+  fun           = "enrichGO",
+  ont = "BP",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+Module123_GO_BP <- gsfilter(ego_BP_Module123, by = 'Count', min = 5)
+
+Module123_GO_BP@compareClusterResult$GeneRatio_old <- Module123_GO_BP@compareClusterResult$GeneRatio
+
+Module123_GO_BP@compareClusterResult$GeneRatio <- sapply(strsplit(as.character(Module123_GO_BP@compareClusterResult[["GeneRatio_old"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+head(Module123_GO_BP)
+write.csv(as.data.frame(Module123_GO_BP), "PseudotimeDEG_Ast_Module123_BP.csv")
+
+png("PseudotimeDEG_Ast_Module123_BP.png", width = 5*500, height = 5*500, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(Module123_GO_BP, showCategory = 10, title = "Top 10 Biological Process", label_format = 80, font.size = 22, by = "GeneRatio")
+plot + theme(axis.text.x = element_text(size = 15, angle = 35,vjust=1, hjust=1), axis.text.y = element_text(size = 15), axis.title.x =element_blank(), plot.title = element_text(size=15, face = "bold")) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+# #################################### Cellular Component #####################################
+ego_CC_Module123 <- compareCluster(
+  geneCluster   = PseudotimeDEG_Ast_Module123_ENTREZID,
+  fun           = "enrichGO",
+  ont = "CC",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+Module123_GO_CC <- gsfilter(ego_CC_Module123, by = 'Count', min = 5)
+
+Module123_GO_CC@compareClusterResult$GeneRatio_old <- Module123_GO_CC@compareClusterResult$GeneRatio
+
+Module123_GO_CC@compareClusterResult$GeneRatio <- sapply(strsplit(as.character(Module123_GO_CC@compareClusterResult[["GeneRatio_old"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+write.csv(as.data.frame(Module123_GO_CC), "PseudotimeDEG_Ast_Module123_CC.csv")
+
+png("PseudotimeDEG_Ast_Module123_CC.png", width = 5*400, height = 5*500, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(Module123_GO_CC, showCategory = 10, title = "Top 10 Cellular Component", label_format = 80, font.size = 22, by = "GeneRatio")
+plot + theme(axis.text.x = element_text(size = 15, angle = 35,vjust=1, hjust=1), axis.text.y = element_text(size = 15), axis.title.x =element_blank(), plot.title = element_text(size=15, face = "bold")) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+# #################################### Molecular Function ##################################
+ego_MF_Module123 <- compareCluster(
+  geneCluster   = PseudotimeDEG_Ast_Module123_ENTREZID,
+  fun           = "enrichGO",
+  ont = "MF",
+  universe = All_Universe_Genes_ENTREZID,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05,
+  OrgDb='org.Hs.eg.db', 
+  readable = TRUE)
+
+Module123_GO_MF <- gsfilter(ego_MF_Module123, by = 'Count', min = 5)
+
+Module123_GO_MF@compareClusterResult$GeneRatio_old <- Module123_GO_MF@compareClusterResult$GeneRatio
+
+Module123_GO_MF@compareClusterResult$GeneRatio <- sapply(strsplit(as.character(Module123_GO_MF@compareClusterResult[["GeneRatio_old"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+write.csv(as.data.frame(Module123_GO_MF), "PseudotimeDEG_Ast_Module123_MF.csv")
+
+png("PseudotimeDEG_Ast_Module123_MF.png", width = 5*600, height = 5*590, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(Module123_GO_MF, showCategory = 10, title = "Top 10 Molecular Function", label_format = 80, font.size = 22, by = "GeneRatio")
+plot + theme(axis.text.x = element_text(size = 15, angle = 35,vjust=1, hjust=1), axis.text.y = element_text(size = 15), axis.title.x =element_blank(), plot.title = element_text(size=15, face = "bold")) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+# ########################## KEGG pathway ########################################
+PseudotimeDEG_Ast_Module123_compKEGG <- compareCluster(geneCluster= PseudotimeDEG_Ast_Module123_ENTREZID,
+                            fun           = "enrichKEGG",
+                            organism = 'hsa', # mmu for mouse, hsa for human
+                            universe = All_Universe_Genes_ENTREZID,
+                            pvalueCutoff  = 0.05,
+                            use_internal_data=T,
+                            pAdjustMethod = "BH",
+                            qvalueCutoff = 0.05)
+
+PseudotimeDEG_Ast_Module123_KEGG <- gsfilter(PseudotimeDEG_Ast_Module123_compKEGG, by = 'Count', min = 5)
+
+PseudotimeDEG_Ast_Module123_KEGG@compareClusterResult$GeneRatio_old <- PseudotimeDEG_Ast_Module123_KEGG@compareClusterResult$GeneRatio
+
+PseudotimeDEG_Ast_Module123_KEGG@compareClusterResult$GeneRatio <- sapply(strsplit(as.character(PseudotimeDEG_Ast_Module123_KEGG@compareClusterResult[["GeneRatio_old"]]), "/"), function(x) as.numeric(x[1]) / as.numeric(x[2]))
+
+png("PseudotimeDEG_Ast_Module123_KEGG.png", width = 5*460, height = 5*590, res = 300, pointsize = 9) 
+plot <- clusterProfiler::dotplot(PseudotimeDEG_Ast_Module123_KEGG, showCategory = 10, title = "Top 10 KEGG Pathway", label_format = 80, font.size = 22, by = "GeneRatio")
+plot + theme(axis.text.x = element_text(size = 15, angle = 35,vjust=1, hjust=1), axis.text.y = element_text(size = 15), axis.title.x =element_blank(), plot.title = element_text(size=15, face = "bold")) +  scale_x_discrete(drop=FALSE)
+dev.off()
+
+
+```{}
+
+PatternOfInterest <- c("Wnt signaling pathway", "canonical Wnt signaling pathway", "beta-catenin binding", "PDZ domain binding", "small GTPase-mediated signal transduction", "chaperone-mediated protein folding", "chaperone-mediated autophagy", "protein-folding chaperone binding", "ATP-dependent protein folding chaperone", "intrinsic apoptotic signaling pathway", "neuron apoptotic process", "regulation of apoptotic signaling pathway", "regulation of neuron apoptotic process", "negative regulation of amyloid-beta formation", "negative regulation of amyloid precursor protein catabolic process", "tau protein binding", "ATP synthesis coupled electron transport", "mitochondrial ATP synthesis coupled electron transport", "ATP biosynthetic process", "proton motive force-driven mitochondrial ATP synthesis", "response to oxidative stress", "cellular response to mechanical stimulus", "amyloid-beta binding", "response to mechanical stimulus", "actin filament organization", "cell-substrate adhesion", "modulation of chemical synaptic transmission", "regulation of trans-synaptic signaling", "cell leading edge", "cell junction assembly", "lamellipodium", "filopodium", "excitatory synapse", "synaptic membrane", "regulation of synapse structure or activity",  "asymmetric synapse", "postsynaptic density", "postsynaptic specialization", "focal adhesion") 
+
+# ##########################
+# dont' need to change below except ploting
+List_TermOfInterest <- list()
+
+for (pat in  PatternOfInterest ) {
+  temp <- grep(pattern = pat, x = as.data.frame(Module123_GO_All)$Description , value = TRUE)
+  List_TermOfInterest <- append(List_TermOfInterest, temp)
+}
+
+TermOfInterest <- do.call("rbind", List_TermOfInterest)
+TermOfInterest <- unique(as.data.frame(TermOfInterest)$V1)
+
+temp <- as.data.frame(Module123_GO_All)
+# to get all terms contain the pattern
+#selectedTerm = temp[which (temp$Description %in% TermOfInterest),]
+
+# to get terms only in PatternOfInterest
+selectedTerm = temp[which (temp$Description %in% PatternOfInterest),]
+
+# define as compareClusterResult object
+selectedTerm_compareClusterResult = new("compareClusterResult", compareClusterResult = selectedTerm)
+
+svg("PseudotimeDEG_Ast_Module_compGO_SelectedTerm2.svg", width = 10,  height = 15,  onefile = TRUE, pointsize = 8, family = "Arial", antialias = "gray")
+plot <- clusterProfiler::dotplot(selectedTerm_compareClusterResult, showCategory = 40, title = "Top 20 Selecetd GO Terms", label_format = 80, font.size = 22, by = "GeneRatio")
+plot + theme(axis.text.x = element_text(size = 17, angle = 70,vjust=1, hjust=1), axis.text.y = element_text(size = 18), axis.title.x =element_blank(), plot.title = element_text(size=18, face = "bold"), legend.text=element_text(size=15), legend.title=element_text(size=15), legend.key.size = unit(0.6, 'cm')) +  scale_x_discrete(drop=FALSE) + NoLegend ()
+dev.off()
+
+#reorder he terms (on the x-axis) and plot
+temp_selectedTerm_compareClusterResult <- selectedTerm
+
+# Get the terms the top enriched terms (based on increasing p.adjust) per cluster
+list_terms_ranked.by.p.adjust <- list()
+for (i in names(Module_Genes)){
+  # Extract the corresponding data frame from temp_selectedTerm_compareClusterResult
+  temp_table <- temp_selectedTerm_compareClusterResult[which(temp_selectedTerm_compareClusterResult$Cluster == i), ]
+  # Order the data frame by p.adjust in increasing order
+  temp_table <- temp_table[order(temp_table$p.adjust), ]
+  # Extract the top 2 enriched terms for the cluster and store them in the list
+  list_terms_ranked.by.p.adjust[[i]] <- temp_table$Description[1:50]
+}
+
+list_Descriptions <- unlist(list_terms_ranked.by.p.adjust) %>% unique
+list_Descriptions <- list_Descriptions[!is.na(list_Descriptions)] #remove NA values
+
+
+table_row.nums <- c()
+for(i in list_Descriptions){
+  table_row.nums <- c(table_row.nums, which(temp_selectedTerm_compareClusterResult$Description == i))
+}
+
+#Assign another name to the list of description
+Descriptions <- list_Descriptions
+
+#write out the desired order levels of the variable in the list
+Descriptions <- c("Wnt signaling pathway", "canonical Wnt signaling pathway", "beta-catenin binding", "PDZ domain binding", "small GTPase-mediated signal transduction", "chaperone-mediated protein folding", "chaperone-mediated autophagy", "protein-folding chaperone binding", "ATP-dependent protein folding chaperone", "intrinsic apoptotic signaling pathway", "neuron apoptotic process", "regulation of apoptotic signaling pathway", "regulation of neuron apoptotic process", "negative regulation of amyloid-beta formation", "negative regulation of amyloid precursor protein catabolic process", "tau protein binding", "ATP synthesis coupled electron transport", "mitochondrial ATP synthesis coupled electron transport", "ATP biosynthetic process", "proton motive force-driven mitochondrial ATP synthesis", "response to oxidative stress", "cellular response to mechanical stimulus", "amyloid-beta binding", "response to mechanical stimulus", "actin filament organization", "cell-substrate adhesion", "modulation of chemical synaptic transmission", "regulation of trans-synaptic signaling", "cell leading edge", "cell junction assembly", "lamellipodium", "filopodium", "excitatory synapse", "synaptic membrane", "regulation of synapse structure or activity",  "asymmetric synapse", "postsynaptic density", "postsynaptic specialization", "focal adhesion") 
+
+#set the order levels of factor variable
+Descriptions <- factor(Descriptions, levels = Descriptions)
+
+# Specify the order in the Dot Plot via factor()
+temp_selectedTerm_compareClusterResult$Description <- factor(temp_selectedTerm_compareClusterResult$Description, levels = rev(Descriptions))
+
+# Reformatted DotPlot using SCENIC::doHeatMap to include all clusters in axis (even those with no enriched terms)
+png("PseudotimeDEG_Ast_compGO_SelectedTerm_ordered.png", width = 7*600, height = 6*600, res = 300, pointsize = 4)
+dotHeatmap(temp_selectedTerm_compareClusterResult[table_row.nums,c("Cluster", "Description", "GeneRatio", "p.adjust")], var.y = "Description", var.x = "Cluster", var.col = "p.adjust", 
+           col.low = "red2" , col.mid = "indianred2", col.high = "blue", #cerulean
+           var.size = "GeneRatio", min.size = 4, max.size = 9) &
+  theme(axis.text.x = element_text(angle = 70, size = 22, color = "black"), 
+        axis.text.y = element_text(size = 22, color = "black"), legend.title=element_text(size=15), legend.key.size = unit(0.6, 'cm'))
+dev.off()
+
+
+
+```{r}
+
+```
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
